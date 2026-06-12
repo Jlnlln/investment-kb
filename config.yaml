@@ -1,0 +1,16 @@
+obsidian_vault_path: 'G:\Obsidian\我的知识库'
+
+files:
+  raw_material: '日常随笔/股市学习/个人投资训练系统/03-知识与案例/原始材料库.md'
+  qa: '日常随笔/股市学习/个人投资训练系统/03-知识与案例/问答知识库.md'
+  market_case: '日常随笔/股市学习/个人投资训练系统/03-知识与案例/市场案例库.md'
+  candidate_rule: '日常随笔/股市学习/个人投资训练系统/04-投资规则/候选规则.md'
+
+ai:
+  provider: 'custom'
+  model: 'glm-4.7-flash'
+  base_url: 'https://api.z.ai/api/anthropic'
+  api_key_env: 'AI_API_KEY'
+  timeout_seconds: 120
+
+timezone: 'Asia/Beijing'
