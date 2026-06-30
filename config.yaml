@@ -10,7 +10,8 @@ ai:
   provider: 'custom'
   model: 'glm-4.7-flash'
   base_url: 'https://api.z.ai/api/anthropic'
-  api_key_env: 'AI_API_KEY'
-  timeout_seconds: 120
+  api_key_env: 'ANTHROPIC_AUTH_TOKEN'
+  timeout_seconds: 300
+  temperature: 0
 
 timezone: 'Asia/Beijing'

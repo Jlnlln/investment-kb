@@ -14,4 +14,5 @@ type CandidateRule struct {
 	RiskBoundary          string   `json:"risk_boundary"`
 	QuestionsToConfirm    []string `json:"questions_to_confirm"`
 	Recommendation        string   `json:"recommendation"`
+	ApplicableObjects     []string `json:"applicable_objects"` // 适用对象
 }

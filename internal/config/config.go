@@ -30,6 +30,7 @@ type AI struct {
 	BaseURL     string `yaml:"base_url"`
 	APIKeyEnv   string `yaml:"api_key_env"`
 	TimeoutSec  int    `yaml:"timeout_seconds"`
+	Temperature float64 `yaml:"temperature"` // 默认 0，确保输出稳定性
 }
 
 // Load 加载配置文件

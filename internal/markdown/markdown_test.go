@@ -17,7 +17,7 @@ func TestRenderRawMaterial(t *testing.T) {
 		t.Fatalf("生成 ID 失败: %v", err)
 	}
 
-	md := RenderRawMaterial(ids, result, rawText, now)
+	md := RenderRawMaterial(nil, ids, result, rawText, now)
 
 	// 验证包含必要元素
 	if len(md) == 0 {
@@ -42,7 +42,7 @@ func TestRenderKnowledgeCard(t *testing.T) {
 		t.Fatalf("生成 ID 失败: %v", err)
 	}
 
-	md := RenderKnowledgeCard(ids, result, now)
+	md := RenderKnowledgeCard(nil, ids, result, now)
 
 	// 验证包含必要元素
 	if len(md) == 0 {
@@ -67,7 +67,7 @@ func TestRenderCandidateRules(t *testing.T) {
 		t.Fatalf("生成 ID 失败: %v", err)
 	}
 
-	md := RenderCandidateRules(ids, result.CandidateRules)
+	md := RenderCandidateRules(nil, ids, result, result.CandidateRules)
 
 	// 验证包含必要元素
 	if len(md) == 0 {

@@ -81,6 +81,7 @@ func MockExtractionResult() *ExtractionResult {
 					"是否适用于所有宽基指数？",
 				},
 				Recommendation: "建议修改后采纳。正式采用前需要补充高概率买入区间定义。",
+				ApplicableObjects: []string{"宽基指数", "行业指数"},
 			},
 			{
 				RuleType:              "仓位规则",
@@ -90,18 +91,20 @@ func MockExtractionResult() *ExtractionResult {
 				SuggestedFormalRuleID: "POS-002",
 				RuleContent:           "买入决策必须结合账户当前状态。低成本持仓者和空仓者的安全边际策略完全不同。",
 				TriggerConditions: []string{
-					"评估买入时机",
-					"判断账户仓位状态",
+					"准备买入、加仓、减仓或卖出前",
+					"当前操作会改变组合仓位",
+					"准备参考他人的买入区间或仓位计划",
+					"当前账户状态不明确",
+					"当前仓位、现金比例、持仓成本会影响操作力度",
 				},
 				Actions: []string{
 					"识别当前是满仓、低持仓、还是空仓",
 					"根据账户状态调整买入节奏和力度",
-					"空仓者可以使用更激进的安全边际策略",
+					"空仓者应使用更保守的分批建仓策略，不能照搬低成本持仓者的满仓计划",
 					"满仓者应更多关注风险控制而非补仓",
 				},
 				NotApplicable: []string{
-					"尚未建立账户状态认知",
-					"无法准确判断持仓成本",
+					"无。该规则是所有买入、加仓、减仓前的通用前置检查。如果账户状态无法判断，则不得执行大额操作。",
 				},
 				RiskBoundary: "低估自己持仓成本或现金储备会导致错误的账户状态判断。",
 				QuestionsToConfirm: []string{
@@ -109,6 +112,7 @@ func MockExtractionResult() *ExtractionResult {
 					"账户状态分类是否需要更细致？",
 				},
 				Recommendation: "建议采纳。这是投资决策的基础前提。",
+				ApplicableObjects: []string{"组合整体", "宽基指数", "行业指数"},
 			},
 			{
 				RuleType:              "风控规则",
@@ -121,12 +125,13 @@ func MockExtractionResult() *ExtractionResult {
 					"计划执行买入操作",
 				},
 				Actions: []string{
-					"明确买入后的上涨应对方案",
-					"明确买入后的下跌应对方案",
+					"明确买入后的下跌应对方案：如果买入后下跌 5%，如何处理？如果下跌 10%，如何处理？如果下跌 20%，是否还有现金？",
+					"明确买入后的上涨应对方案：如果直接上涨，是否追高？如果没买够就上涨，是否能接受？",
+					"明确买入后的仓位管理：买入后总仓位是多少？买入后现金比例是多少？",
 					"将预案写入交易笔记",
 				},
 				NotApplicable: []string{
-					"没有交易笔记习惯",
+					"无。任何买入和加仓动作前都应使用。若无法写出预案，则不得进行大额买入，只允许小仓试探或暂缓操作。",
 				},
 				RiskBoundary: "预案过于笼统无法执行，等同于没有预案。",
 				QuestionsToConfirm: []string{
@@ -134,6 +139,7 @@ func MockExtractionResult() *ExtractionResult {
 					"预案是否需要包含具体的点位？",
 				},
 				Recommendation: "建议采纳。这是纪律性投资的核心。",
+				ApplicableObjects: []string{"所有需要主动买入或加仓的资产；宽基指数优先，个股需额外考虑黑天鹅风险"},
 			},
 		},
 		MyUnderstanding: "这段问答最重要的启发是，投资决策不能只看市场点位，还要看账户状态。完整问题不是当前点位能不能买，而是在我的账户状态下当前点位能买多少。",

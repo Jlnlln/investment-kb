@@ -1,0 +1,17 @@
+# 二进制
+kb.exe
+
+# 运行时状态文件
+data/import_hashes.json
+data/id_state.json
+data/error_outputs/
+
+# 本地工具元数据
+.workbuddy/
+
+# 临时备份文件
+*.bak
+*.tmp*
+
+# 示例输入数据（用户自行维护）
+examples/raw_qa.txt

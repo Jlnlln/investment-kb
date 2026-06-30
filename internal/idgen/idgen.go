@@ -108,9 +108,9 @@ func GenerateIDs(result *model.ExtractionResult, now time.Time) (*model.Document
 		ids.CaseID = fmt.Sprintf("%s-%s-%03d", casePrefix, dateStr, caseSeq)
 	}
 
-	// CR IDs（每条候选规则有自己的 domain/topic）
-	for _, rule := range result.CandidateRules {
-		crPrefix := fmt.Sprintf("CR-%s-%s", rule.DomainCode, rule.TopicCode)
+	// CR IDs（全局递增，不按 domain/topic 分组）
+	for range result.CandidateRules {
+		crPrefix := "CR"
 		crSeq := nextSequence(dateStr, crPrefix)
 		crID := fmt.Sprintf("%s-%s-%03d", crPrefix, dateStr, crSeq)
 		ids.CandidateIDs = append(ids.CandidateIDs, crID)

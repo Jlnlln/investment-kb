@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"investment-kb/internal/config"
 	"investment-kb/internal/model"
 )
 
 // RenderCandidateRules 生成候选规则 CR Markdown（每条规则一个段落）
-func RenderCandidateRules(ids *model.DocumentIDs, rules []model.CandidateRule) string {
+func RenderCandidateRules(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rules []model.CandidateRule) string {
 	var sb strings.Builder
 
 	for i, rule := range rules {
@@ -16,7 +17,7 @@ func RenderCandidateRules(ids *model.DocumentIDs, rules []model.CandidateRule) s
 		if i < len(ids.CandidateIDs) {
 			crID = ids.CandidateIDs[i]
 		}
-		sb.WriteString(renderSingleCandidateRule(crID, ids.QAID, rule))
+		sb.WriteString(renderSingleCandidateRule(cfg, crID, ids.QAID, ids.RawID, result, ids, rule))
 		sb.WriteString("\n")
 	}
 
@@ -24,20 +25,33 @@ func RenderCandidateRules(ids *model.DocumentIDs, rules []model.CandidateRule) s
 }
 
 // renderSingleCandidateRule 生成单条候选规则 Markdown
-func renderSingleCandidateRule(crID, qaID string, rule model.CandidateRule) string {
+func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, result *model.ExtractionResult, ids *model.DocumentIDs, rule model.CandidateRule) string {
 	var sb strings.Builder
 
 	// 分隔线
 	sb.WriteString("---\n\n")
 
-	// 标题
-	sb.WriteString(fmt.Sprintf("# %s｜%s\n\n", crID, rule.RuleName))
+	// 标题：CR-日期-序数｜DOMAIN-TOPIC｜规则名称
+	shortCode := rule.DomainCode + "-" + rule.TopicCode
+	sb.WriteString(fmt.Sprintf("# %s｜%s｜%s\n\n", crID, shortCode, rule.RuleName))
 
 	// 元数据
-	sb.WriteString("状态：待确认\n")
-	sb.WriteString(fmt.Sprintf("规则类型：%s\n", rule.RuleType))
-	sb.WriteString(fmt.Sprintf("建议正式编号：%s\n", rule.SuggestedFormalRuleID))
-	sb.WriteString(fmt.Sprintf("来源知识卡片：%s\n\n", qaID))
+	sb.WriteString("状态：待确认  \n")
+	sb.WriteString(fmt.Sprintf("规则类型：%s  \n", rule.RuleType))
+	sb.WriteString(fmt.Sprintf("建议正式编号：%s  \n", rule.SuggestedFormalRuleID))
+	sb.WriteString(fmt.Sprintf("来源知识卡片：%s  \n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
+	sb.WriteString(fmt.Sprintf("来源原文：%s  \n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), JoinHeading(ids.RawID, result.Title))))
+
+	caseText := getCaseText(ids, result)
+	if caseText == "暂无" {
+		sb.WriteString(fmt.Sprintf("关联案例：%s  \n", caseText))
+	} else {
+		sb.WriteString(fmt.Sprintf("关联案例：%s  \n", ObsidianHeadingLink(GetMarketCasePath(cfg), JoinHeading(ids.CaseID, result.Case.CaseName), JoinHeading(ids.CaseID, result.Case.CaseName))))
+	}
+
+	if rule.ApplicableObjects != nil && len(rule.ApplicableObjects) > 0 {
+		sb.WriteString(fmt.Sprintf("适用对象：%s  \n", strings.Join(rule.ApplicableObjects, " / ")))
+	}
 
 	// 分隔线
 	sb.WriteString("---\n\n")
@@ -92,4 +106,12 @@ func renderSingleCandidateRule(crID, qaID string, rule model.CandidateRule) stri
 	sb.WriteString("\n")
 
 	return sb.String()
+}
+
+// getCaseText 获取关联案例文本
+func getCaseText(ids *model.DocumentIDs, result *model.ExtractionResult) string {
+	if result.ShouldGenerateCase && result.Case != nil {
+		return fmt.Sprintf("见：%s｜%s", ids.CaseID, result.Case.CaseName)
+	}
+	return "暂无"
 }

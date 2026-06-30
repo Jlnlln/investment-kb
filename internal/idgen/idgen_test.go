@@ -45,15 +45,21 @@ func TestGenerateIDs(t *testing.T) {
 		t.Errorf("CaseID 应为空，实际为: %s", ids.CaseID)
 	}
 
-	// 验证 CR IDs
-	if len(ids.CandidateIDs) != len(result.CandidateRules) {
-		t.Errorf("CandidateIDs 数量错误: got %d, want %d", len(ids.CandidateIDs), len(result.CandidateRules))
+	// 验证 CR IDs（全局递增）
+	expectedCR1 := "CR-20260609-001"
+	expectedCR2 := "CR-20260609-002"
+	expectedCR3 := "CR-20260609-003"
+	if len(ids.CandidateIDs) < 3 {
+		t.Fatalf("CR IDs 数量不足: got %d, want >= 3", len(ids.CandidateIDs))
 	}
-
-	// 验证第一条 CR ID
-	expectedCRPrefix := "CR-BUY-SAFETY-20260609-001"
-	if len(ids.CandidateIDs) > 0 && ids.CandidateIDs[0] != expectedCRPrefix {
-		t.Errorf("CR ID 格式错误: got %s, want %s", ids.CandidateIDs[0], expectedCRPrefix)
+	if ids.CandidateIDs[0] != expectedCR1 {
+		t.Errorf("CR ID 1 错误: got %s, want %s", ids.CandidateIDs[0], expectedCR1)
+	}
+	if ids.CandidateIDs[1] != expectedCR2 {
+		t.Errorf("CR ID 2 错误: got %s, want %s", ids.CandidateIDs[1], expectedCR2)
+	}
+	if ids.CandidateIDs[2] != expectedCR3 {
+		t.Errorf("CR ID 3 错误: got %s, want %s", ids.CandidateIDs[2], expectedCR3)
 	}
 }
 

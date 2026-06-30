@@ -114,7 +114,11 @@ func RenderKnowledgeCard(ids *model.DocumentIDs, result *model.ExtractionResult,
 	// 8. 我的理解
 	sb.WriteString("---\n\n")
 	sb.WriteString("## 8. 我的理解\n\n")
-	sb.WriteString(result.MyUnderstanding)
+		if result.MyUnderstanding == "" {
+			sb.WriteString("待补充。")
+		} else {
+			sb.WriteString(result.MyUnderstanding)
+		}
 	sb.WriteString("\n")
 
 	return sb.String()

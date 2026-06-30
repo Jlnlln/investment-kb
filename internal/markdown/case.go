@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
+	"investment-kb/internal/config"
 	"investment-kb/internal/model"
 )
 
 // RenderMarketCase 生成市场案例 CASE Markdown
-func RenderMarketCase(ids *model.DocumentIDs, c model.MarketCase) string {
+func RenderMarketCase(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, c model.MarketCase) string {
 	var sb strings.Builder
 
 	// 分隔线
@@ -18,8 +19,8 @@ func RenderMarketCase(ids *model.DocumentIDs, c model.MarketCase) string {
 	sb.WriteString(fmt.Sprintf("# %s｜%s\n\n", ids.CaseID, c.CaseName))
 
 	// 元数据
-	sb.WriteString(fmt.Sprintf("来源材料：%s\n", ids.RawID))
-	sb.WriteString(fmt.Sprintf("关联知识卡片：%s\n", ids.QAID))
+	sb.WriteString(fmt.Sprintf("来源材料：%s\n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), JoinHeading(ids.RawID, result.Title))))
+	sb.WriteString(fmt.Sprintf("关联知识卡片：%s\n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
 	sb.WriteString(fmt.Sprintf("主题标签：%s\n\n", formatTags([]string{
 		c.DomainCode, c.TopicCode,
 	})))

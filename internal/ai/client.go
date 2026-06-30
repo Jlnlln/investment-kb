@@ -16,12 +16,13 @@ type Client interface {
 
 // Config 是 AI 客户端配置
 type Config struct {
-	Provider   string
-	Model      string
-	BaseURL    string
-	APIKey     string
-	TimeoutSec int
-	MaxRetries int
+	Provider    string
+	Model       string
+	BaseURL     string
+	APIKey      string
+	TimeoutSec  int
+	MaxRetries  int
+	Temperature float64 // 默认 0，确保输出稳定性
 }
 
 // NewClient 根据配置创建对应的 AI 客户端
@@ -35,10 +36,13 @@ func NewClient(cfg *Config) (Client, error) {
 	}
 
 	if cfg.TimeoutSec <= 0 {
-		cfg.TimeoutSec = 120
+		cfg.TimeoutSec = 300
 	}
 	if cfg.MaxRetries <= 0 {
-		cfg.MaxRetries = 3
+		cfg.MaxRetries = 5
+	}
+	if cfg.Temperature <= 0 {
+		cfg.Temperature = 0 // 默认 0，确保输出稳定性
 	}
 
 	switch cfg.Provider {
