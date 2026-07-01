@@ -25,15 +25,11 @@ kb.exe -input examples/raw_qa.txt -mock -dry-run -source "陈老师问答"
 
 ```bash
 # Windows PowerShell
-$env:AI_API_KEY = "your_api_key_here"
-kb.exe -input examples/raw_qa.txt -source "陈老师问答"
-
-# Windows CMD
-set AI_API_KEY=your_api_key_here
+$env:ANTHROPIC_AUTH_TOKEN = "your_api_key_here"
 kb.exe -input examples/raw_qa.txt -source "陈老师问答"
 
 # Linux/Mac
-export AI_API_KEY="your_api_key_here"
+export ANTHROPIC_AUTH_TOKEN="your_api_key_here"
 ./kb -input examples/raw_qa.txt -source "陈老师问答"
 ```
 
@@ -45,41 +41,34 @@ export AI_API_KEY="your_api_key_here"
 obsidian_vault_path: 'G:\Obsidian\我的知识库'
 
 files:
-  raw_material: '日常随笔/股市学习/个人投资训练系统/03-知识与案例/原始材料库.md'
-  qa: '日常随笔/股市学习/个人投资训练系统/03-知识与案例/问答知识库.md'
-  market_case: '日常随笔/股市学习/个人投资训练系统/03-知识与案例/市场案例库.md'
-  candidate_rule: '日常随笔/股市学习/个人投资训练系统/04-投资规则/候选规则.md'
+  raw_material: '日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/原始材料库.md'
+  qa: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/问答知识卡片库.md'
+  market_case: '日常随笔/股市学习/宽基指数仓位管理系统/03-规则/规则回溯验证/历史案例库/AI提取案例素材库.md'
+  candidate_rule: '日常随笔/股市学习/宽基指数仓位管理系统/03-规则/候选规则/候选规则库.md'
+  validation_card_template: '日常随笔/股市学习/宽基指数仓位管理系统/99-模板/规则验证卡模板.md'
+  validation_card_dir: '日常随笔/股市学习/宽基指数仓位管理系统/03-规则/规则回溯验证/规则验证卡'
 
 ai:
   provider: 'custom'
-  model: 'glm-4.7-flash'
+  model: 'glm-5.1'
   base_url: 'https://api.z.ai/api/anthropic'
-  api_key_env: 'AI_API_KEY'  # 设置为环境变量名
-  timeout_seconds: 120
+  api_key_env: 'ANTHROPIC_AUTH_TOKEN'
+  timeout_seconds: 300
+  temperature: 0
 
 timezone: 'Asia/Beijing'
 ```
 
-然后设置环境变量：
+然后设置环境变量（API Key 只能通过环境变量设置，不支持命令行参数）：
 
 ```bash
 # Windows PowerShell
-$env:AI_API_KEY = "your_api_key_here"
+$env:ANTHROPIC_AUTH_TOKEN = "your_api_key_here"
 kb.exe -input examples/raw_qa.txt -source "陈老师问答"
 
 # Linux/Mac
-export AI_API_KEY="your_api_key_here"
+export ANTHROPIC_AUTH_TOKEN="your_api_key_here"
 ./kb -input examples/raw_qa.txt -source "陈老师问答"
-```
-
-### 方法 3：通过命令行参数直接设置（推荐）
-
-```bash
-# Windows PowerShell
-kb.exe -input examples/raw_qa.txt -source "陈老师问答" -ai-api-key "your_api_key_here"
-
-# Linux/Mac
-./kb -input examples/raw_qa.txt -source "陈老师问答" -ai-api-key "your_api_key_here"
 ```
 
 ---
@@ -117,8 +106,8 @@ kb.exe -input examples/raw_qa.txt -source "陈老师问答" -dry-run -config con
 | `-dry-run` | 只打印 Markdown，不写入 Obsidian | false |
 | `-source` | 来源（如：陈老师问答） | 必需 |
 | `-config` | 配置文件路径 | config.yaml |
+| `-allow-duplicate` | 允许重复导入（跳过 hash 检查） | false |
 | `-v` | 显示版本号 | false |
-| `-ai-api-key` | 直接设置 API Key | 从环境变量读取 |
 
 ---
 
@@ -128,16 +117,16 @@ kb.exe -input examples/raw_qa.txt -source "陈老师问答" -dry-run -config con
 
 **错误：**
 ```
-❌ AI 调用失败: 未设置 API Key（环境变量：AI_API_KEY）
+❌ AI 调用失败: 未设置 API Key（环境变量：ANTHROPIC_AUTH_TOKEN）
 ```
 
 **解决：**
 ```bash
 # Windows PowerShell
-$env:AI_API_KEY = "your_actual_api_key_here"
+$env:ANTHROPIC_AUTH_TOKEN = "your_actual_api_key_here"
 
 # Linux/Mac
-export AI_API_KEY="your_actual_api_key_here"
+export ANTHROPIC_AUTH_TOKEN="your_actual_api_key_here"
 ```
 
 ### 2. Token 过期错误
@@ -181,30 +170,30 @@ kb.exe -input examples/raw_qa.txt -mock -dry-run -config G:/GoCode/investment-kb
 
 ---
 
-# RAW-POS-SAFETY-20260617-001｜安全边际与错失买入机会如何平衡
+# RAW-ACCOUNT-20260701-001｜安全边际与错失买入机会如何平衡
 
 来源：陈老师问答
 ...
-对应知识卡片：[[日常随笔/股市学习/个人投资训练系统/03-知识与案例/问答知识库#QA-POS-SAFETY-20260617-001|QA-POS-SAFETY-20260617-001]]
+对应知识卡片：[[日常随笔/股市学习/宽基指数仓位管理系统/02-观点/问答知识卡片库#QA-ACCOUNT-20260701-001|QA-ACCOUNT-20260701-001]]
 ...
 
 === QA ===
 
 ---
 
-# QA-POS-SAFETY-20260617-001｜安全边际与错失买入机会如何平衡
+# QA-ACCOUNT-20260701-001｜安全边际与错失买入机会如何平衡
 
-原始材料：[[日常随笔/股市学习/个人投资训练系统/03-知识与案例/原始材料库#RAW-POS-SAFETY-20260617-001|RAW-POS-SAFETY-20260617-001]]
+原始材料：[[日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/原始材料库#RAW-ACCOUNT-20260701-001|RAW-ACCOUNT-20260701-001]]
 ...
 
 === CR ===
 
 ---
 
-# CR-20260617-001｜BUY-SAFETY｜高概率区间先建底仓
+# CR-VALUATION-20260701-001｜VALUATION-SAFETY｜高概率区间先建底仓
 
-来源知识卡片：[[日常随笔/股市学习/个人投资训练系统/03-知识与案例/问答知识库#QA-POS-SAFETY-20260617-001|QA-POS-SAFETY-20260617-001]]
-来源原文：[[日常随笔/股市学习/个人投资训练系统/03-知识与案例/原始材料库#RAW-POS-SAFETY-20260617-001|RAW-POS-SAFETY-20260617-001]]
+来源知识卡片：[[日常随笔/股市学习/宽基指数仓位管理系统/02-观点/问答知识卡片库#QA-...
+来源原文：[[日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/原始材料库#RAW-ACCOUNT-20260701-001|RAW-ACCOUNT-20260701-001]]
 ...
 ```
 
@@ -213,16 +202,17 @@ kb.exe -input examples/raw_qa.txt -mock -dry-run -config G:/GoCode/investment-kb
 ```
 🤖 正在调用 AI...
 
-✅ QA-POS-SAFETY-20260617-001 生成完成
-✅ CR-20260617-001 生成完成
-✅ CR-20260617-002 生成完成
-✅ CR-20260617-003 生成完成
+✅ RAW-ACCOUNT-20260701-001 生成完成
+✅ QA-ACCOUNT-20260701-001 生成完成
+✅ CR-VALUATION-20260701-001 生成完成
+✅ CR-ACCOUNT-20260701-002 生成完成
+✅ CR-RISK-20260701-003 生成完成
 
 📊 生成统计：
-  - RAW 文件：1 个
-  - QA 文件：1 个
-  - CR 文件：3 个
-  - 总字数：约 5000 字
+  - RAW：1 条
+  - QA：1 条
+  - CR：3 条
+  - 验证卡：3 张
 ```
 
 ---
@@ -241,7 +231,7 @@ kb.exe -input examples/raw_qa.txt -mock -dry-run -config G:/GoCode/investment-kb
 3. **使用真实 AI 模式生成**
    ```bash
    # 设置 API Key
-   $env:AI_API_KEY = "your_api_key"
+   $env:ANTHROPIC_AUTH_TOKEN = "your_api_key"
    
    # 运行
    kb.exe -input examples/raw_qa.txt -source "陈老师问答"
