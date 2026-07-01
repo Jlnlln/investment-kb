@@ -1,5 +1,7 @@
 # My Understanding 空值优化
 
+> **当前状态**：空值处理逻辑仍然有效。当前实现在 `internal/app/extract.go:416-419`（校验警告）和 `internal/markdown/qa.go:133-139`（渲染处理）。
+
 ## 优化内容
 
 ### 问题

@@ -1,5 +1,7 @@
 # AI 输出稳定性优化
 
+> **当前状态**：Temperature 固定为 0 已实现。后续新增了 `classify`（领域分类）和 `dedup`（相似规则检测）模块，进一步保证了程序层面的一致性。当前 AI 超时默认 300s（非文档中示例的 120s）。
+
 ## 概述
 
 通过固定 AI 请求的 temperature 参数为 0，确保同一篇文章多次运行时，domain_code、topic_code、candidate_rules 等关键字段保持稳定。

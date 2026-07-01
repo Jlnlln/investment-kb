@@ -1,5 +1,7 @@
 # AI 输出校验和错误保存机制
 
+> **当前状态**：本文档描述的校验体系已全部实现并随代码迭代演进。部分函数已从 `internal/app/extract.go` 迁移至 `internal/ai/custom.go`，且新增了否定语境放行（`checkAbsoluteClaimInText` + `negationMarkers`）和智能满仓检查（`ContainsForbiddenPhrases` 三级体系）。行号引用可能因代码演进略有偏移，以当前代码为准。
+
 ## 概述
 
 为 investment-kb 增加了完善的 AI 输出校验机制，确保生成的数据符合业务规则和质量要求。

@@ -1,5 +1,7 @@
 # AI 输出校验和错误保存机制（v2 更新）
 
+> **当前状态**：v2 的禁止表达体系已从单层关键词匹配演进为智能三级检查：`positiveWords`（硬失败）/ `negativeWords`（放行）/ `warningPhrases`（仅警告），带否定语境自动识别。具体实现在 `internal/ai/custom.go` 的 `ContainsForbiddenPhrases()`。行号引用可能因代码演进略有偏移，以当前代码为准。
+
 ## 概述
 
 为 investment-kb 增加了完善的 AI 输出校验机制，确保生成的数据符合业务规则和质量要求。
