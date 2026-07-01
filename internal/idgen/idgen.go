@@ -118,6 +118,25 @@ func GenerateIDs(result *model.ExtractionResult, now time.Time) (*model.Document
 		CandidateIDs: make([]string, 0, len(result.CandidateRules)),
 	}
 
+	// 根据 material_type 生成对应 ID
+	materialType := string(result.MaterialType)
+	if materialType == "" {
+		materialType = "rule_candidate"
+	}
+
+	switch materialType {
+	case "macro_knowledge":
+		// 生成 KNOW ID
+		knowPrefix := "KNOW"
+		knowSeq := nextSequence(dateStr, knowPrefix)
+		ids.KNOWID = fmt.Sprintf("%s-%s-%03d", knowPrefix, dateStr, knowSeq)
+	case "market_observation":
+		// 生成 OBS ID
+		obsPrefix := "OBS"
+		obsSeq := nextSequence(dateStr, obsPrefix)
+		ids.OBSID = fmt.Sprintf("%s-%s-%03d", obsPrefix, dateStr, obsSeq)
+	}
+
 	// CASE ID（如果需要）
 	if result.ShouldGenerateCase && result.Case != nil {
 		casePrefix := fmt.Sprintf("CASE-%s-%s", result.Case.DomainCode, result.Case.TopicCode)

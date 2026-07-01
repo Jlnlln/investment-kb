@@ -1,9 +1,26 @@
 package model
 
+// MaterialType 材料类型
+type MaterialType string
+
+const (
+	MaterialTypeRuleCandidate    MaterialType = "rule_candidate"    // 规则型材料
+	MaterialTypeMacroKnowledge   MaterialType = "macro_knowledge"   // 宏观理解型
+	MaterialTypeMarketObservation MaterialType = "market_observation" // 市场状态观察型
+	MaterialTypeArchiveOnly      MaterialType = "archive_only"      // 仅存档
+)
+
 // ExtractionResult 是 AI 返回的结构化提取结果
 type ExtractionResult struct {
 	Title                  string          `json:"title"`
 	Source                 string          `json:"source"`
+	MaterialType           MaterialType    `json:"material_type"`           // 新增：材料类型
+	GenerateQA             bool            `json:"generate_qa"`             // 新增：是否生成 QA
+	GenerateCandidateRules bool            `json:"generate_candidate_rules"` // 新增：是否生成 CR
+	GenerateValidationCards bool           `json:"generate_validation_cards"` // 新增：是否生成验证卡
+	GenerateKnowledgeCard  bool            `json:"generate_knowledge_card"`  // 新增：是否生成 KNOW 卡
+	GenerateObservationCard bool           `json:"generate_observation_card"` // 新增：是否生成 OBS 卡
+	NoRuleReason           string          `json:"no_rule_reason"`          // 新增：不生成规则的原因
 	DomainCode             string          `json:"domain_code"`
 	TopicCode              string          `json:"topic_code"`
 	Tags                   []string        `json:"tags"`

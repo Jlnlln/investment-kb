@@ -147,10 +147,47 @@ func Extract(opts *ExtractOptions) error {
 		fmt.Printf("⚠️  检测到重复导入：原文哈希已存在 (%s)，因启用 --allow-duplicate，继续写入\n", result.RawHash)
 	}
 
-	// 4.5 候选规则去重：同一篇材料下，rule_name 相同则只保留第一条
+	// 4.5 根据 material_type 路由处理
+	now := time.Now() // 定义时间戳
+	var materialType string
+	if result.MaterialType != "" {
+		materialType = string(result.MaterialType)
+	} else {
+		// 兼容旧版本：如果没有 material_type 字段，默认为 rule_candidate
+		materialType = "rule_candidate"
+		result.MaterialType = model.MaterialTypeRuleCandidate
+		result.GenerateQA = true
+		result.GenerateCandidateRules = true
+		result.GenerateValidationCards = true
+	}
+
+	fmt.Printf("📋 材料类型：%s\n", materialType)
+
+	// 路由处理
+	switch materialType {
+	case "rule_candidate":
+		// 原有逻辑：生成 RAW + QA + CR + 验证卡
+		return extractRuleCandidate(opts, cfg, result, rawText, now)
+	case "macro_knowledge":
+		// 生成 RAW + KNOW 卡
+		return extractMacroKnowledge(opts, cfg, result, rawText, now)
+	case "market_observation":
+		// 生成 RAW + OBS 卡
+		return extractMarketObservation(opts, cfg, result, rawText, now)
+	case "archive_only":
+		// 仅生成 RAW
+		return extractArchiveOnly(opts, cfg, result, rawText, now)
+	default:
+		return fmt.Errorf("未知的材料类型：%s", materialType)
+	}
+}
+
+// extractRuleCandidate 处理规则型材料（原有逻辑）
+func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *model.ExtractionResult, rawText []byte, now time.Time) error {
+	// 4.6 候选规则去重：同一篇材料下，rule_name 相同则只保留第一条
 	result.CandidateRules = deduplicateCandidateRules(result.CandidateRules)
 
-	// 4.6 领域分类映射：AI domain_code 为"建议"，程序做二次分类
+	// 4.7 领域分类映射：AI domain_code 为"建议"，程序做二次分类
 	fmt.Printf("🔍 领域分类映射...\n")
 	for i := range result.CandidateRules {
 		rule := &result.CandidateRules[i]
@@ -173,7 +210,7 @@ func Extract(opts *ExtractOptions) error {
 	}, topMappedDomain)
 	result.DomainCode = topFinalDomain
 
-	// 4.7 跨文章相似规则检查
+	// 4.8 跨文章相似规则检查
 	fmt.Printf("🔍 跨文章相似规则检查...\n")
 	crLibraryPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
 	existingCRs, err := dedup.ParseExistingCRs(crLibraryPath)
@@ -201,13 +238,12 @@ func Extract(opts *ExtractOptions) error {
 	}
 
 	// 5. 生成编号
-	now := time.Now()
 	ids, err := idgen.GenerateIDs(result, now)
 	if err != nil {
 		return fmt.Errorf("生成编号失败: %w", err)
 	}
 
-	// 6. 渲染 Markdown（在校验通过后才渲染）
+	// 6. 渲染 Markdown
 	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
 	qaMD := markdown.RenderKnowledgeCard(cfg, ids, result, now)
 	// 准备每条 CR 的相似规则数据
@@ -219,7 +255,7 @@ func Extract(opts *ExtractOptions) error {
 		caseMD = markdown.RenderMarketCase(cfg, ids, result, *result.Case)
 	}
 
-	// 7. Dry-run 模式：执行校验，通过后才打印
+	// 7. Dry-run 模式
 	if opts.DryRun {
 		fmt.Printf("=== RAW ===\n\n%s\n", rawMD)
 		fmt.Printf("=== QA ===\n\n%s\n", qaMD)
@@ -230,7 +266,7 @@ func Extract(opts *ExtractOptions) error {
 		return nil
 	}
 
-	// 8. 写入 Obsidian（全部成功后才保存编号状态）
+	// 8. 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
 	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
@@ -281,17 +317,148 @@ func Extract(opts *ExtractOptions) error {
 		fmt.Printf("   ⚠️  未生成市场案例（原因：%s）\n", result.CaseInsufficientReason)
 	}
 
-	// 9. Markdown 全部写入成功，保存编号状态
+	// 9. 保存状态
 	if err := idgen.SaveState(); err != nil {
 		return fmt.Errorf("保存编号状态失败: %w", err)
 	}
 
-	// 10. 保存哈希记录到 import_hashes.json
+	// 10. 保存哈希记录
 	if err := saveHash(result.RawHash); err != nil {
 		return fmt.Errorf("保存哈希记录失败: %w", err)
 	}
 
-	fmt.Printf("\n✅ 完成\n")
+	fmt.Printf("\n✅ 完成（规则型材料）\n")
+	return nil
+}
+
+// extractMacroKnowledge 处理宏观理解型材料
+func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *model.ExtractionResult, rawText []byte, now time.Time) error {
+	// 生成编号（KNOW 卡使用特殊前缀）
+	ids, err := idgen.GenerateIDs(result, now)
+	if err != nil {
+		return fmt.Errorf("生成编号失败: %w", err)
+	}
+
+	// 渲染 Markdown
+	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
+	knowMD := markdown.RenderKnowCard(cfg, ids, result, now)
+
+	// Dry-run 模式
+	if opts.DryRun {
+		fmt.Printf("=== RAW ===\n\n%s\n", rawMD)
+		fmt.Printf("=== KNOW ===\n\n%s\n", knowMD)
+		return nil
+	}
+
+	// 写入 Obsidian
+	fmt.Printf("📝 正在写入 Obsidian...\n")
+
+	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+		return fmt.Errorf("写入原始材料失败: %w", err)
+	}
+	fmt.Printf("   ✅ %s\n", ids.RawID)
+
+	// 写入 KNOW 卡
+	// TODO: 需要从 config.yaml 读取 KNOW 卡文件路径
+	// 临时方案：硬编码路径
+	knowPath := "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md"
+	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, knowPath, knowMD); err != nil {
+		return fmt.Errorf("写入宏观理解卡失败: %w", err)
+	}
+	fmt.Printf("   ✅ %s\n", ids.KNOWID)
+
+	// 保存状态
+	if err := idgen.SaveState(); err != nil {
+		return fmt.Errorf("保存编号状态失败: %w", err)
+	}
+
+	// 保存哈希记录
+	if err := saveHash(result.RawHash); err != nil {
+		return fmt.Errorf("保存哈希记录失败: %w", err)
+	}
+
+	fmt.Printf("\n✅ 完成（宏观理解型材料）\n")
+	return nil
+}
+
+// extractMarketObservation 处理市场状态观察型材料
+func extractMarketObservation(opts *ExtractOptions, cfg *config.Config, result *model.ExtractionResult, rawText []byte, now time.Time) error {
+	// 生成编号（OBS 卡使用特殊前缀）
+	ids, err := idgen.GenerateIDs(result, now)
+	if err != nil {
+		return fmt.Errorf("生成编号失败: %w", err)
+	}
+
+	// 渲染 Markdown
+	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
+
+	// Dry-run 模式
+	if opts.DryRun {
+		fmt.Printf("=== RAW ===\n\n%s\n", rawMD)
+		fmt.Printf("⚠️  OBS 卡生成功能待实现\n")
+		return nil
+	}
+
+	// 写入 Obsidian
+	fmt.Printf("📝 正在写入 Obsidian...\n")
+
+	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+		return fmt.Errorf("写入原始材料失败: %w", err)
+	}
+	fmt.Printf("   ✅ %s\n", ids.RawID)
+
+	fmt.Printf("   ⚠️  OBS 卡生成功能待实现（需要更新 config.yaml）\n")
+
+	// 保存状态
+	if err := idgen.SaveState(); err != nil {
+		return fmt.Errorf("保存编号状态失败: %w", err)
+	}
+
+	// 保存哈希记录
+	if err := saveHash(result.RawHash); err != nil {
+		return fmt.Errorf("保存哈希记录失败: %w", err)
+	}
+
+	fmt.Printf("\n✅ 完成（市场状态观察型材料）\n")
+	return nil
+}
+
+// extractArchiveOnly 处理仅存档材料
+func extractArchiveOnly(opts *ExtractOptions, cfg *config.Config, result *model.ExtractionResult, rawText []byte, now time.Time) error {
+	// 生成编号
+	ids, err := idgen.GenerateIDs(result, now)
+	if err != nil {
+		return fmt.Errorf("生成编号失败: %w", err)
+	}
+
+	// 渲染 Markdown（仅 RAW）
+	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
+
+	// Dry-run 模式
+	if opts.DryRun {
+		fmt.Printf("=== RAW ===\n\n%s\n", rawMD)
+		return nil
+	}
+
+	// 写入 Obsidian（仅 RAW）
+	fmt.Printf("📝 正在写入 Obsidian...\n")
+
+	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+		return fmt.Errorf("写入原始材料失败: %w", err)
+	}
+	fmt.Printf("   ✅ %s\n", ids.RawID)
+
+	// 保存状态
+	if err := idgen.SaveState(); err != nil {
+		return fmt.Errorf("保存编号状态失败: %w", err)
+	}
+
+	// 保存哈希记录
+	if err := saveHash(result.RawHash); err != nil {
+		return fmt.Errorf("保存哈希记录失败: %w", err)
+	}
+
+	fmt.Printf("\n✅ 完成（仅存档材料）\n")
 	return nil
 }
 
