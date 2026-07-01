@@ -51,6 +51,20 @@ func GetCandidateRulePath(cfg *config.Config) string {
 	return cfg.Files.CandidateRule
 }
 
+func GetMacroKnowledgePath(cfg *config.Config) string {
+	if cfg == nil {
+		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md"
+	}
+	return cfg.Files.MacroKnowledge
+}
+
+func GetMarketObservationPath(cfg *config.Config) string {
+	if cfg == nil {
+		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡库.md"
+	}
+	return cfg.Files.MarketObservation
+}
+
 func JoinHeading(id, title string) string {
 	return fmt.Sprintf("%s｜%s", id, title)
 }

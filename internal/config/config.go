@@ -17,12 +17,14 @@ type Config struct {
 
 // Files 文件路径配置
 type Files struct {
-	RawMaterial          string `yaml:"raw_material"`
-	QA                   string `yaml:"qa"`
-	MarketCase           string `yaml:"market_case"`
-	CandidateRule        string `yaml:"candidate_rule"`
-	ValidationCardTemplate string `yaml:"validation_card_template"`
-	ValidationCardDir      string `yaml:"validation_card_dir"`
+	RawMaterial             string `yaml:"raw_material"`
+	QA                      string `yaml:"qa"`
+	MarketCase              string `yaml:"market_case"`
+	CandidateRule           string `yaml:"candidate_rule"`
+	ValidationCardTemplate  string `yaml:"validation_card_template"`
+	ValidationCardDir       string `yaml:"validation_card_dir"`
+	MacroKnowledge          string `yaml:"macro_knowledge"`     // 宏观理解卡库
+	MarketObservation       string `yaml:"market_observation"` // 市场观察卡库
 }
 
 // AI 配置

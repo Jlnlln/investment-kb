@@ -359,9 +359,10 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
 	// 写入 KNOW 卡
-	// TODO: 需要从 config.yaml 读取 KNOW 卡文件路径
-	// 临时方案：硬编码路径
-	knowPath := "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md"
+	knowPath := cfg.Files.MacroKnowledge
+	if knowPath == "" {
+		knowPath = "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md"
+	}
 	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, knowPath, knowMD); err != nil {
 		return fmt.Errorf("写入宏观理解卡失败: %w", err)
 	}

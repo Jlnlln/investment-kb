@@ -44,14 +44,12 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	case "macro_knowledge":
 		// 宏观理解型材料：链接到 KNOW 卡
 		if ids.KNOWID != "" {
-			knowPath := "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md" // TODO: 从 config 读取
-			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", ObsidianHeadingLink(knowPath, JoinHeading(ids.KNOWID, result.Title), JoinHeading(ids.KNOWID, result.Title))))
+			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", ObsidianHeadingLink(GetMacroKnowledgePath(cfg), JoinHeading(ids.KNOWID, result.Title), JoinHeading(ids.KNOWID, result.Title))))
 		}
 	case "market_observation":
 		// 市场观察型材料：链接到 OBS 卡
 		if ids.OBSID != "" {
-			obsPath := "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡库.md" // TODO: 从 config 读取
-			sb.WriteString(fmt.Sprintf("对应市场观察卡：%s\n\n", ObsidianHeadingLink(obsPath, JoinHeading(ids.OBSID, result.Title), JoinHeading(ids.OBSID, result.Title))))
+			sb.WriteString(fmt.Sprintf("对应市场观察卡：%s\n\n", ObsidianHeadingLink(GetMarketObservationPath(cfg), JoinHeading(ids.OBSID, result.Title), JoinHeading(ids.OBSID, result.Title))))
 		}
 	}
 

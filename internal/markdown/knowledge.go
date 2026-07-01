@@ -18,7 +18,11 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 	fmt.Fprintf(&sb, "title: %s\n", result.Title)
 	fmt.Fprintf(&sb, "source: %s\n", result.Source)
 	fmt.Fprintf(&sb, "material_type: macro_knowledge\n")
-	fmt.Fprintf(&sb, "tags: %s\n", strings.Join(result.Tags, ", "))
+	// tags 用 YAML 列表格式，Obsidian 才能识别
+	fmt.Fprintf(&sb, "tags:\n")
+	for _, tag := range result.Tags {
+		fmt.Fprintf(&sb, "  - %s\n", tag)
+	}
 	fmt.Fprintf(&sb, "created: %s\n", now.Format("2006-01-02"))
 	fmt.Fprintf(&sb, "---\n\n")
 
