@@ -109,6 +109,10 @@ func Extract(opts *ExtractOptions) error {
 		return fmt.Errorf("读取输入文件失败: %w", err)
 	}
 
+	// 1.1 输入清洗：去掉 [!tip] 使用说明 后的内容
+	cleanedText := cleanRawText(string(rawText))
+	rawText = []byte(cleanedText)
+
 	// 2. 加载配置
 	cfg, err := config.Load(opts.ConfigPath)
 	if err != nil {
@@ -141,10 +145,8 @@ func Extract(opts *ExtractOptions) error {
 
 	// 4.2 检查是否重复导入
 	if checkHash(result.RawHash) {
-		if !opts.AllowDuplicate {
-			return fmt.Errorf("检测到重复导入：原文哈希已存在 (%s)。如需强制导入，请加 --allow-duplicate", result.RawHash)
-		}
-		fmt.Printf("⚠️  检测到重复导入：原文哈希已存在 (%s)，因启用 --allow-duplicate，继续写入\n", result.RawHash)
+		// 同一哈希已存在，无论是否 --allow-duplicate，都不允许同一原文重复生成
+		return fmt.Errorf("检测到重复导入：原文哈希已存在 (%s)。同一原文不允许重复生成 RAW/KNOW。如需更新，请先清除旧数据再重跑。", result.RawHash)
 	}
 
 	// 4.5 根据 material_type 路由处理
@@ -461,6 +463,21 @@ func extractArchiveOnly(opts *ExtractOptions, cfg *config.Config, result *model.
 
 	fmt.Printf("\n✅ 完成（仅存档材料）\n")
 	return nil
+}
+
+// cleanRawText 清洗原始文本：去掉模板使用说明
+func cleanRawText(text string) string {
+	// 截断 [!tip] 使用说明 后面的内容
+	cutMarkers := []string{
+		"> [!tip] 使用说明",
+		">[!tip] 使用说明",
+	}
+	for _, marker := range cutMarkers {
+		if idx := strings.Index(text, marker); idx >= 0 {
+			text = text[:idx]
+		}
+	}
+	return strings.TrimSpace(text)
 }
 
 // deduplicateCandidateRules 对同一篇材料下的候选规则去重

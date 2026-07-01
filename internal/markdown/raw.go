@@ -41,20 +41,6 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 		if ids.QAID != "" {
 			sb.WriteString(fmt.Sprintf("对应知识卡片：%s\n\n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
 		}
-	case "macro_knowledge":
-		// 宏观理解型材料：链接到 KNOW 卡
-		if ids.KNOWID != "" {
-			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", ObsidianHeadingLink(GetMacroKnowledgePath(cfg), JoinHeading(ids.KNOWID, result.Title), JoinHeading(ids.KNOWID, result.Title))))
-		}
-	case "market_observation":
-		// 市场观察型材料：链接到 OBS 卡
-		if ids.OBSID != "" {
-			sb.WriteString(fmt.Sprintf("对应市场观察卡：%s\n\n", ObsidianHeadingLink(GetMarketObservationPath(cfg), JoinHeading(ids.OBSID, result.Title), JoinHeading(ids.OBSID, result.Title))))
-		}
-	}
-
-	// 对应候选规则（仅 rule_candidate 类型显示）
-	if materialType == "rule_candidate" {
 		sb.WriteString("对应候选规则：\n\n")
 		for i, crID := range ids.CandidateIDs {
 			if i < len(result.CandidateRules) {
@@ -64,20 +50,47 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 			}
 		}
 		sb.WriteString("\n")
+	case "macro_knowledge":
+		// 宏观理解型材料：链接到 KNOW 卡，明确标注不生成 QA/CR
+		if ids.KNOWID != "" {
+			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", ObsidianHeadingLink(GetMacroKnowledgePath(cfg), JoinHeading(ids.KNOWID, result.Title), JoinHeading(ids.KNOWID, result.Title))))
+		}
+		sb.WriteString("对应知识卡片：不生成\n")
+		sb.WriteString("对应候选规则：不生成\n")
+		sb.WriteString("对应规则验证卡：不生成\n\n")
+		if result.NoRuleReason != "" {
+			sb.WriteString(fmt.Sprintf("不生成规则原因：%s\n\n", result.NoRuleReason))
+		}
+	case "market_observation":
+		// 市场观察型材料：链接到 OBS 卡，明确标注不生成 QA/CR
+		if ids.OBSID != "" {
+			sb.WriteString(fmt.Sprintf("对应市场观察卡：%s\n\n", ObsidianHeadingLink(GetMarketObservationPath(cfg), JoinHeading(ids.OBSID, result.Title), JoinHeading(ids.OBSID, result.Title))))
+		}
+		sb.WriteString("对应知识卡片：不生成\n")
+		sb.WriteString("对应候选规则：不生成\n")
+		sb.WriteString("对应规则验证卡：不生成\n\n")
+	case "archive_only":
+		// 仅存档：标注全部不生成
+		sb.WriteString("对应知识卡片：不生成\n")
+		sb.WriteString("对应候选规则：不生成\n\n")
 	}
 
-	// 对应案例
-	if ids.CaseID != "" {
-		sb.WriteString(fmt.Sprintf("对应案例：%s\n\n", ObsidianHeadingLink(GetMarketCasePath(cfg), JoinHeading(ids.CaseID, result.Case.CaseName), JoinHeading(ids.CaseID, result.Case.CaseName))))
-	} else {
-		sb.WriteString("对应案例：暂不单独生成市场案例\n\n")
-	}
+	// 对应候选规则（仅 rule_candidate 类型显示——已在上面处理）
 
-	// 案例说明
-	if ids.CaseID == "" && result.CaseInsufficientReason != "" {
-		sb.WriteString("案例说明：")
-		sb.WriteString(result.CaseInsufficientReason)
-		sb.WriteString("\n\n")
+	// 对应案例（仅 rule_candidate 类型显示）
+	if materialType == "rule_candidate" {
+		if ids.CaseID != "" {
+			sb.WriteString(fmt.Sprintf("对应案例：%s\n\n", ObsidianHeadingLink(GetMarketCasePath(cfg), JoinHeading(ids.CaseID, result.Case.CaseName), JoinHeading(ids.CaseID, result.Case.CaseName))))
+		} else {
+			sb.WriteString("对应案例：暂不单独生成市场案例\n\n")
+		}
+
+		// 案例说明
+		if ids.CaseID == "" && result.CaseInsufficientReason != "" {
+			sb.WriteString("案例说明：")
+			sb.WriteString(result.CaseInsufficientReason)
+			sb.WriteString("\n\n")
+		}
 	}
 
 	// 原文

@@ -369,10 +369,12 @@ TARGET：目标权重
 ETF：ETF 产品层
 ACCOUNT：账户状态
 RISK：风险控制与预案
+MACRO：宏观经济与政策（仅用于 macro_knowledge 类型材料）
+STATE：市场状态机（也适用于宏观理解型材料中涉及政策/利率的内容）
 
 选择规则：
 
-1. domain_code 必须是上述 10 个大领域之一。
+1. domain_code 必须是上述 11 个大领域之一。
 2. 如果材料核心是估值、买卖点、赔率判断，选择 VALUATION。
 3. 如果材料核心是仓位管理、账户状态差异，选择 ACCOUNT。
 4. 如果材料核心是风险预案、纪律、分仓、黑天鹅应对，选择 RISK。
@@ -382,9 +384,10 @@ RISK：风险控制与预案
 8. 如果材料核心是现金比例或流动性管理，选择 CASH。
 9. 如果材料核心是 ETF 产品层选择（溢价、跟踪误差、费率），选择 ETF。
 10. 如果材料核心是评分模型或信号系统，选择 SCORE。
-11. 具体动作（买入/卖出/加仓/减仓/满仓/空仓）不要作为 domain_code。
-12. 具体指数（沪深300、创业板、标普500 等）不要作为 domain_code。
-13. 不要自创 domain_code。
+11. 如果材料核心是宏观经济、利率、政策、通胀等运行逻辑（macro_knowledge 类型），选择 MACRO 或 STATE。
+12. 具体动作（买入/卖出/加仓/减仓/满仓/空仓）不要作为 domain_code。
+13. 具体指数（沪深300、创业板、标普500 等）不要作为 domain_code。
+14. 不要自创 domain_code。
 
 **领域分类优先级规则（当规则同时涉及多个领域时使用）**：
 
@@ -447,6 +450,11 @@ FOMO：踏空焦虑
 FEAR：恐惧
 DISC：纪律
 REVIEW：复盘
+RATE：利率（仅用于 macro_knowledge 类型）
+POLICY：政策调控（仅用于 macro_knowledge 类型）
+ECON：经济周期（仅用于 macro_knowledge 类型）
+GROW：增长/复苏（仅用于 macro_knowledge 类型）
+DEBT：债务/信用（仅用于 macro_knowledge 类型）
 
 选择规则：
 
@@ -456,11 +464,12 @@ REVIEW：复盘
 4. 如果 domain_code=ACCOUNT，topic_code 可以是 POS、CASH、FULL、EMPTY、COST、BUFFER、DISC 等。
 5. 如果 domain_code=RISK，topic_code 可以是 PLAN、DISC、EMOTION、FOMO、FEAR 等。
 6. 如果 domain_code=REBALANCE，topic_code 可以是 ALLOC、INDEX、HS300、A500、CYB、STAR、HSI、SP500 等。
-7. 如果 domain_code=STATE，topic_code 可以是 INDEX、HS300、A500、CYB、STAR、HSI、SP500 等。
-8. 对于“无法预测短期走势时依靠仓位管理”这类强调纪律、不确定性和仓位控制的主题，优先使用 domain_code=ACCOUNT、topic_code=DISC，而不是 POS-POS。
-9. 不要自创 topic_code。
-10. 不要生成过长短码。
-11. 严禁把 domain_code 和 topic_code 填成同一个值。
+7. 如果 domain_code=STATE，topic_code 可以是 INDEX、HS300、A500、CYB、STAR、HSI、SP500、RATE、POLICY 等。
+8. 如果 domain_code=MACRO，topic_code 必须是 RATE、POLICY、ECON、GROW、DEBT 之一。
+9. 对于"无法预测短期走势时依靠仓位管理"这类强调纪律、不确定性和仓位控制的主题，优先使用 domain_code=ACCOUNT、topic_code=DISC，而不是 POS-POS。
+10. 不要自创 topic_code。
+11. 不要生成过长短码。
+12. 严禁把 domain_code 和 topic_code 填成同一个值。
 
 ---
 

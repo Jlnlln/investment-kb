@@ -18,6 +18,14 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 	fmt.Fprintf(&sb, "title: %s\n", result.Title)
 	fmt.Fprintf(&sb, "source: %s\n", result.Source)
 	fmt.Fprintf(&sb, "material_type: macro_knowledge\n")
+	// layer 和 topic 字段（从编号解析）
+	if ids.KNOWID != "" {
+		parts := strings.SplitN(ids.KNOWID, "-", 4)
+		if len(parts) >= 3 {
+			fmt.Fprintf(&sb, "layer: %s\n", parts[1])
+			fmt.Fprintf(&sb, "topic: %s\n", parts[2])
+		}
+	}
 	// tags 用 YAML 列表格式，Obsidian 才能识别
 	fmt.Fprintf(&sb, "tags:\n")
 	for _, tag := range result.Tags {
@@ -26,8 +34,13 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 	fmt.Fprintf(&sb, "created: %s\n", now.Format("2006-01-02"))
 	fmt.Fprintf(&sb, "---\n\n")
 
-	// 标题
-	fmt.Fprintf(&sb, "# %s %s\n\n", ids.KNOWID, result.Title)
+	// 标题（用｜分隔，与 RAW/CR 格式一致）
+	fmt.Fprintf(&sb, "# %s｜%s\n\n", ids.KNOWID, result.Title)
+
+	// 原始材料链接（使用完整 Obsidian 锚点链接）
+	rawPath := GetRawMaterialPath(cfg)
+	rawHeading := JoinHeading(ids.RawID, result.Title)
+	fmt.Fprintf(&sb, "原始材料：%s\n\n", ObsidianHeadingLink(rawPath, rawHeading, ids.RawID))
 
 	// 核心结论
 	fmt.Fprintf(&sb, "## 核心结论\n\n")
@@ -35,9 +48,15 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 
 	// 核心逻辑
 	fmt.Fprintf(&sb, "## 核心逻辑\n\n")
-	for _, logic := range result.CoreLogic {
-		fmt.Fprintf(&sb, "### %s\n\n", logic.Title)
+	for i, logic := range result.CoreLogic {
+		fmt.Fprintf(&sb, "### %d.%d %s\n\n", 1, i+1, logic.Title)
 		fmt.Fprintf(&sb, "%s\n\n", logic.Content)
+	}
+
+	// 可复用理解（如果有 summary）
+	if result.Summary != "" {
+		fmt.Fprintf(&sb, "## 可复用理解\n\n")
+		fmt.Fprintf(&sb, "%s\n\n", result.Summary)
 	}
 
 	// 适用场景
@@ -63,19 +82,6 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 		fmt.Fprintf(&sb, "## 不生成规则的原因\n\n")
 		fmt.Fprintf(&sb, "%s\n\n", result.NoRuleReason)
 	}
-
-	// 我的理解
-	fmt.Fprintf(&sb, "## 我的理解\n\n")
-	if result.MyUnderstanding != "" {
-		fmt.Fprintf(&sb, "%s\n", result.MyUnderstanding)
-	} else {
-		fmt.Fprintf(&sb, "待补充。\n")
-	}
-	fmt.Fprintf(&sb, "\n")
-
-	// 原始材料链接
-	fmt.Fprintf(&sb, "---\n\n")
-	fmt.Fprintf(&sb, "**原始材料**：[[%s]]\n", ids.RawID)
 
 	return sb.String()
 }

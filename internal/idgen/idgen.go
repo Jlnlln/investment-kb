@@ -90,11 +90,40 @@ func MapCRDomain(oldDomain string) string {
 		return "ACCOUNT"
 	case "ALLOC":
 		return "REBALANCE"
-	case "CASH", "VALUATION", "REBALANCE", "EXPOSURE", "SCORE", "STATE", "TARGET", "ETF", "ACCOUNT", "RISK":
+	case "CASH", "VALUATION", "REBALANCE", "EXPOSURE", "SCORE", "STATE", "TARGET", "ETF", "ACCOUNT", "RISK", "MACRO":
 		return oldDomain
 	default:
 		return oldDomain
 	}
+}
+
+// KnowTopicToLayerTopic 将 macro_knowledge 的 topic_code 映射到分层编码
+// 用于 KNOW 卡编号前缀，如 KNOW-L3-RATE
+func KnowTopicToLayerTopic(domainCode, topicCode string) (layer, topic string) {
+	// 宏观理解分层编码表
+	layerTopicMap := map[string]map[string][2]string{
+		"STATE": {
+			"ALLOC": {"L3", "RATE"},   // 利率/货币政策
+			"PLAN":  {"L3", "POLICY"},  // 政策调控
+			"RATE":  {"L3", "RATE"},    // 利率
+			"POLICY": {"L3", "POLICY"}, // 政策
+		},
+		"MACRO": {
+			"RATE":   {"L3", "RATE"},    // 利率
+			"POLICY": {"L3", "POLICY"},  // 政策调控
+			"ECON":   {"L2", "ECON"},    // 经济周期
+			"GROW":   {"L2", "GROW"},    // 增长/复苏
+			"DEBT":   {"L2", "DEBT"},    // 债务/信用
+		},
+	}
+
+	if layers, ok := layerTopicMap[domainCode]; ok {
+		if pair, ok := layers[topicCode]; ok {
+			return pair[0], pair[1]
+		}
+	}
+	// 兜底：如果没有匹配到，使用原始 domain/topic
+	return domainCode, topicCode
 }
 
 // GenerateIDs 生成文档编号
@@ -105,36 +134,56 @@ func GenerateIDs(result *model.ExtractionResult, now time.Time) (*model.Document
 
 	dateStr := now.Format("20060102")
 
-	// RAW 和 QA 共用同一组 domain/topic
-	rawPrefix := fmt.Sprintf("RAW-%s-%s", result.DomainCode, result.TopicCode)
-	qaPrefix := fmt.Sprintf("QA-%s-%s", result.DomainCode, result.TopicCode)
-
-	rawSeq := nextSequence(dateStr, rawPrefix)
-	qaSeq := nextSequence(dateStr, qaPrefix)
-
 	ids := &model.DocumentIDs{
-		RawID:        fmt.Sprintf("%s-%s-%03d", rawPrefix, dateStr, rawSeq),
-		QAID:         fmt.Sprintf("%s-%s-%03d", qaPrefix, dateStr, qaSeq),
 		CandidateIDs: make([]string, 0, len(result.CandidateRules)),
 	}
 
-	// 根据 material_type 生成对应 ID
 	materialType := string(result.MaterialType)
 	if materialType == "" {
 		materialType = "rule_candidate"
 	}
 
 	switch materialType {
+	case "rule_candidate":
+		// RAW 和 QA 共用同一组 domain/topic
+		rawPrefix := fmt.Sprintf("RAW-%s-%s", result.DomainCode, result.TopicCode)
+		qaPrefix := fmt.Sprintf("QA-%s-%s", result.DomainCode, result.TopicCode)
+
+		rawSeq := nextSequence(dateStr, rawPrefix)
+		qaSeq := nextSequence(dateStr, qaPrefix)
+
+		ids.RawID = fmt.Sprintf("%s-%s-%03d", rawPrefix, dateStr, rawSeq)
+		ids.QAID = fmt.Sprintf("%s-%s-%03d", qaPrefix, dateStr, qaSeq)
+
 	case "macro_knowledge":
-		// 生成 KNOW ID
-		knowPrefix := "KNOW"
+		// KNOW 卡使用分层编码：RAW-L3-RATE-YYYYMMDD-001
+		layer, topic := KnowTopicToLayerTopic(result.DomainCode, result.TopicCode)
+		rawPrefix := fmt.Sprintf("RAW-%s-%s", layer, topic)
+		knowPrefix := fmt.Sprintf("KNOW-%s-%s", layer, topic)
+
+		rawSeq := nextSequence(dateStr, rawPrefix)
 		knowSeq := nextSequence(dateStr, knowPrefix)
+
+		ids.RawID = fmt.Sprintf("%s-%s-%03d", rawPrefix, dateStr, rawSeq)
 		ids.KNOWID = fmt.Sprintf("%s-%s-%03d", knowPrefix, dateStr, knowSeq)
+
 	case "market_observation":
-		// 生成 OBS ID
-		obsPrefix := "OBS"
+		// OBS 卡使用分层编码：RAW-L2-ECON-YYYYMMDD-001
+		layer, topic := KnowTopicToLayerTopic(result.DomainCode, result.TopicCode)
+		rawPrefix := fmt.Sprintf("RAW-%s-%s", layer, topic)
+		obsPrefix := fmt.Sprintf("OBS-%s-%s", layer, topic)
+
+		rawSeq := nextSequence(dateStr, rawPrefix)
 		obsSeq := nextSequence(dateStr, obsPrefix)
+
+		ids.RawID = fmt.Sprintf("%s-%s-%03d", rawPrefix, dateStr, rawSeq)
 		ids.OBSID = fmt.Sprintf("%s-%s-%03d", obsPrefix, dateStr, obsSeq)
+
+	case "archive_only":
+		// 仅生成 RAW 编号
+		rawPrefix := fmt.Sprintf("RAW-%s-%s", result.DomainCode, result.TopicCode)
+		rawSeq := nextSequence(dateStr, rawPrefix)
+		ids.RawID = fmt.Sprintf("%s-%s-%03d", rawPrefix, dateStr, rawSeq)
 	}
 
 	// CASE ID（如果需要）
