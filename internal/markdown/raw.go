@@ -29,19 +29,44 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	}
 	sb.WriteString("\n")
 
-	// 对应知识卡片
-	sb.WriteString(fmt.Sprintf("对应知识卡片：%s\n\n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
+	// 对应知识卡片/宏观理解卡/市场观察卡（根据 material_type 动态生成）
+	materialType := string(result.MaterialType)
+	if materialType == "" {
+		materialType = "rule_candidate"
+	}
 
-	// 对应候选规则
-	sb.WriteString("对应候选规则：\n\n")
-	for i, crID := range ids.CandidateIDs {
-		if i < len(result.CandidateRules) {
-			rule := result.CandidateRules[i]
-			heading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
-			sb.WriteString(fmt.Sprintf("- %s\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), heading, heading)))
+	switch materialType {
+	case "rule_candidate":
+		// 规则型材料：链接到 QA 卡
+		if ids.QAID != "" {
+			sb.WriteString(fmt.Sprintf("对应知识卡片：%s\n\n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
+		}
+	case "macro_knowledge":
+		// 宏观理解型材料：链接到 KNOW 卡
+		if ids.KNOWID != "" {
+			knowPath := "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md" // TODO: 从 config 读取
+			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", ObsidianHeadingLink(knowPath, JoinHeading(ids.KNOWID, result.Title), JoinHeading(ids.KNOWID, result.Title))))
+		}
+	case "market_observation":
+		// 市场观察型材料：链接到 OBS 卡
+		if ids.OBSID != "" {
+			obsPath := "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡库.md" // TODO: 从 config 读取
+			sb.WriteString(fmt.Sprintf("对应市场观察卡：%s\n\n", ObsidianHeadingLink(obsPath, JoinHeading(ids.OBSID, result.Title), JoinHeading(ids.OBSID, result.Title))))
 		}
 	}
-	sb.WriteString("\n")
+
+	// 对应候选规则（仅 rule_candidate 类型显示）
+	if materialType == "rule_candidate" {
+		sb.WriteString("对应候选规则：\n\n")
+		for i, crID := range ids.CandidateIDs {
+			if i < len(result.CandidateRules) {
+				rule := result.CandidateRules[i]
+				heading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
+				sb.WriteString(fmt.Sprintf("- %s\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), heading, heading)))
+			}
+		}
+		sb.WriteString("\n")
+	}
 
 	// 对应案例
 	if ids.CaseID != "" {
