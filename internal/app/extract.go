@@ -324,7 +324,10 @@ func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *mode
 		return fmt.Errorf("保存编号状态失败: %w", err)
 	}
 
-	// 10. 保存哈希记录
+	// 10. 清理孤立验证卡
+	cleanOrphanValidationCards(cfg)
+
+	// 11. 保存哈希记录
 	if err := saveHash(result.RawHash); err != nil {
 		return fmt.Errorf("保存哈希记录失败: %w", err)
 	}
@@ -374,6 +377,9 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 	if err := idgen.SaveState(); err != nil {
 		return fmt.Errorf("保存编号状态失败: %w", err)
 	}
+
+	// 清理孤立验证卡
+	cleanOrphanValidationCards(cfg)
 
 	// 保存哈希记录
 	if err := saveHash(result.RawHash); err != nil {
@@ -465,19 +471,47 @@ func extractArchiveOnly(opts *ExtractOptions, cfg *config.Config, result *model.
 	return nil
 }
 
-// cleanRawText 清洗原始文本：去掉模板使用说明
+// cleanRawText 清洗原始文本：去掉 YAML frontmatter 和模板使用说明
 func cleanRawText(text string) string {
-	// 截断 [!tip] 使用说明 后面的内容
+	// 1. 去掉模板的 YAML frontmatter（只保留正文部分）
+	lines := strings.Split(text, "\n")
+	var cleaned []string
+	inFrontmatter := false
+	frontmatterSeen := false
+
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		// 第一次遇到 --- 进入 frontmatter
+		if !frontmatterSeen && trimmed == "---" {
+			inFrontmatter = true
+			frontmatterSeen = true
+			continue
+		}
+		// 仍在 frontmatter 中，遇到第二个 --- 结束
+		if inFrontmatter && trimmed == "---" {
+			inFrontmatter = false
+			continue
+		}
+		if inFrontmatter {
+			continue // 跳过 frontmatter 里的内容
+		}
+		cleaned = append(cleaned, line)
+	}
+
+	result := strings.Join(cleaned, "\n")
+
+	// 2. 截断 [!tip] 使用说明 后面的内容
 	cutMarkers := []string{
 		"> [!tip] 使用说明",
 		">[!tip] 使用说明",
 	}
 	for _, marker := range cutMarkers {
-		if idx := strings.Index(text, marker); idx >= 0 {
-			text = text[:idx]
+		if idx := strings.Index(result, marker); idx >= 0 {
+			result = result[:idx]
 		}
 	}
-	return strings.TrimSpace(text)
+
+	return strings.TrimSpace(result)
 }
 
 // deduplicateCandidateRules 对同一篇材料下的候选规则去重
@@ -804,4 +838,54 @@ func prepareSimilarData(similarResults []map[int][]dedup.SimilarRule, ruleCount 
 		}
 	}
 	return data
+}
+
+// cleanOrphanValidationCards 清理孤立的验证卡（候选规则库中不存在的）
+func cleanOrphanValidationCards(cfg *config.Config) {
+	vcDir := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.ValidationCardDir)
+	crPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
+
+	// 读取候选规则库中所有 CR ID
+	crData, err := os.ReadFile(crPath)
+	if err != nil {
+		return // 候选规则库不存在，跳过
+	}
+
+	crIDs := make(map[string]bool)
+	lines := strings.Split(string(crData), "\n")
+	for _, line := range lines {
+		line = strings.TrimSpace(line)
+		// 匹配 # CR-XXX-YYYYMMDD-XXX 格式
+		if strings.HasPrefix(line, "# CR-") {
+			// 提取 ID（标题可能是 "# CR-ACCOUNT-20260701-001｜规则名"）
+			id := strings.TrimPrefix(line, "# ")
+			if idx := strings.Index(id, "｜"); idx > 0 {
+				id = id[:idx]
+			}
+			crIDs[id] = true
+		}
+	}
+
+	// 扫描验证卡目录，删除不在 CR 列表中的
+	entries, err := os.ReadDir(vcDir)
+	if err != nil {
+		return // 目录不存在，跳过
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		// 提取文件名（去掉 .md 后缀）
+		name := entry.Name()
+		vcID := strings.TrimSuffix(name, ".md")
+
+		// 检查是否在 CR 列表中
+		if !crIDs[vcID] {
+			vcPath := filepath.Join(vcDir, name)
+			if err := os.Remove(vcPath); err == nil {
+				fmt.Printf("   🧹 清理孤立验证卡：%s\n", vcID)
+			}
+		}
+	}
 }
