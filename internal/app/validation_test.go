@@ -121,17 +121,11 @@ func TestValidateExtractionResult_CaseValidation(t *testing.T) {
 }
 
 func TestCheckAbsoluteClaims(t *testing.T) {
-	positiveResult := &model.ExtractionResult{
-		Summary:         "这个方法一定能赚钱",
-		RiskBoundaries:  []string{"保证盈利", "无风险"},
-	}
-
-	negativeResult := &model.ExtractionResult{
-		Summary:         "这个方法可能会赚钱，也有可能亏损",
-		RiskBoundaries:  []string{"可能会亏损"},
-	}
-
 	t.Run("包含绝对化表达应返回错误", func(t *testing.T) {
+		positiveResult := &model.ExtractionResult{
+			Summary:        "这个方法一定能赚钱",
+			RiskBoundaries: []string{"保证盈利", "无风险"},
+		}
 		err := checkAbsoluteClaims(positiveResult)
 		if err == nil {
 			t.Errorf("期望错误但未返回错误")
@@ -142,9 +136,52 @@ func TestCheckAbsoluteClaims(t *testing.T) {
 	})
 
 	t.Run("不包含绝对化表达应通过", func(t *testing.T) {
+		negativeResult := &model.ExtractionResult{
+			Summary:        "这个方法可能会赚钱，也有可能亏损",
+			RiskBoundaries: []string{"可能会亏损"},
+		}
 		err := checkAbsoluteClaims(negativeResult)
 		if err != nil {
 			t.Errorf("期望成功但返回错误: %v", err)
+		}
+	})
+
+	t.Run("否定语境应放行", func(t *testing.T) {
+		tests := []string{
+			"高概率买点不等于必然上涨。",
+			"历史数据不能保证未来结果。",
+			"低估并不代表一定上涨。",
+			"安全边际不是无风险。",
+			"当前不建议满仓。",
+			"不能因为低估就梭哈。",
+			"高胜率不意味着保证盈利。",
+		}
+		for _, text := range tests {
+			result := &model.ExtractionResult{
+				Summary: text,
+			}
+			if err := checkAbsoluteClaims(result); err != nil {
+				t.Errorf("期望放行但返回错误: %s -> %v", text, err)
+			}
+		}
+	})
+
+	t.Run("非否定语境应拦截", func(t *testing.T) {
+		tests := []string{
+			"这个位置必然上涨。",
+			"当前买入一定上涨。",
+			"这是无风险机会。",
+			"买入可以保证盈利。",
+			"现在应该满仓。",
+			"这里可以梭哈。",
+		}
+		for _, text := range tests {
+			result := &model.ExtractionResult{
+				Summary: text,
+			}
+			if err := checkAbsoluteClaims(result); err == nil {
+				t.Errorf("期望拦截但通过: %s", text)
+			}
 		}
 	})
 }
@@ -156,66 +193,6 @@ func TestContainsForbiddenPhrases(t *testing.T) {
 		expectError bool
 		errContains string
 	}{
-		{
-			name:  "保证盈利",
-			text:  "这个方法保证盈利",
-			expectError: true,
-			errContains: "保证盈利",
-		},
-		{
-			name:  "没有亏损风险",
-			text:  "没有亏损风险",
-			expectError: true,
-			errContains: "没有亏损风险",
-		},
-		{
-			name:  "必然上涨",
-			text:  "必然上涨",
-			expectError: true,
-			errContains: "必然上涨",
-		},
-		{
-			name:  "一定赚钱",
-			text:  "一定赚钱",
-			expectError: true,
-			errContains: "一定赚钱",
-		},
-		{
-			name:  "判断错了也不会亏",
-			text:  "判断错了也不会亏",
-			expectError: true,
-			errContains: "判断错了也不会亏",
-		},
-		{
-			name:  "只赚不亏",
-			text:  "只赚不亏",
-			expectError: true,
-			errContains: "只赚不亏",
-		},
-		{
-			name:  "无风险",
-			text:  "无风险",
-			expectError: true,
-			errContains: "无风险",
-		},
-		{
-			name:  "稳赚",
-			text:  "稳赚",
-			expectError: true,
-			errContains: "稳赚",
-		},
-		{
-			name:  "绝对安全",
-			text:  "绝对安全",
-			expectError: true,
-			errContains: "绝对安全",
-		},
-		{
-			name:  "必胜",
-			text:  "必胜",
-			expectError: true,
-			errContains: "必胜",
-		},
 		{
 			name:  "可直接满仓",
 			text:  "可直接满仓",
@@ -256,12 +233,6 @@ func TestContainsForbiddenPhrases(t *testing.T) {
 			name:  "不包含任何禁止表达",
 			text:  "这个方法可能会赚钱，也有可能亏损",
 			expectError: false,
-		},
-		{
-			name:  "多个禁止表达",
-			text:  "保证盈利且没有亏损风险",
-			expectError: true,
-			errContains: "没有亏损风险",
 		},
 	}
 

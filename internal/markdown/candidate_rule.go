@@ -5,11 +5,13 @@ import (
 	"strings"
 
 	"investment-kb/internal/config"
+	"investment-kb/internal/dedup"
+	"investment-kb/internal/idgen"
 	"investment-kb/internal/model"
 )
 
 // RenderCandidateRules 生成候选规则 CR Markdown（每条规则一个段落）
-func RenderCandidateRules(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rules []model.CandidateRule) string {
+func RenderCandidateRules(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rules []model.CandidateRule, similarData [][]dedup.SimilarRule) string {
 	var sb strings.Builder
 
 	for i, rule := range rules {
@@ -17,7 +19,11 @@ func RenderCandidateRules(cfg *config.Config, ids *model.DocumentIDs, result *mo
 		if i < len(ids.CandidateIDs) {
 			crID = ids.CandidateIDs[i]
 		}
-		sb.WriteString(renderSingleCandidateRule(cfg, crID, ids.QAID, ids.RawID, result, ids, rule))
+		var similarRules []dedup.SimilarRule
+		if i < len(similarData) {
+			similarRules = similarData[i]
+		}
+		sb.WriteString(renderSingleCandidateRule(cfg, crID, ids.QAID, ids.RawID, result, ids, rule, similarRules))
 		sb.WriteString("\n")
 	}
 
@@ -25,7 +31,7 @@ func RenderCandidateRules(cfg *config.Config, ids *model.DocumentIDs, result *mo
 }
 
 // renderSingleCandidateRule 生成单条候选规则 Markdown
-func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, result *model.ExtractionResult, ids *model.DocumentIDs, rule model.CandidateRule) string {
+func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, result *model.ExtractionResult, ids *model.DocumentIDs, rule model.CandidateRule, similarRules []dedup.SimilarRule) string {
 	var sb strings.Builder
 
 	// 分隔线
@@ -36,9 +42,20 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 	sb.WriteString(fmt.Sprintf("# %s｜%s｜%s\n\n", crID, shortCode, rule.RuleName))
 
 	// 元数据
-	sb.WriteString("状态：待确认  \n")
-	sb.WriteString(fmt.Sprintf("规则类型：%s  \n", rule.RuleType))
-	sb.WriteString(fmt.Sprintf("建议正式编号：%s  \n", rule.SuggestedFormalRuleID))
+	sb.WriteString("状态：候选  \n")
+	sb.WriteString("验证状态：待验证  \n")
+	sb.WriteString(fmt.Sprintf("规则验证卡：%s  \n", GetValidationCardLink(cfg, crID, crID)))
+	sb.WriteString("是否可转正式：否  \n")
+
+	// 领域信息（显示原始和映射）
+	mappedDomain := idgen.MapCRDomain(rule.DomainCode)
+	sb.WriteString(fmt.Sprintf("建议正式领域：%s  \n", mappedDomain))
+	if rule.OriginalDomainCode != "" && rule.OriginalDomainCode != rule.DomainCode {
+		sb.WriteString(fmt.Sprintf("原始领域（AI 建议）：%-s → 映射领域：%s  \n", rule.OriginalDomainCode, rule.DomainCode))
+	} else {
+		sb.WriteString(fmt.Sprintf("领域分类：%s  \n", rule.DomainCode))
+	}
+
 	sb.WriteString(fmt.Sprintf("来源知识卡片：%s  \n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
 	sb.WriteString(fmt.Sprintf("来源原文：%s  \n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), JoinHeading(ids.RawID, result.Title))))
 
@@ -103,7 +120,27 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 	sb.WriteString("---\n\n")
 	sb.WriteString("## 7. 建议处理\n\n")
 	sb.WriteString(rule.Recommendation)
-	sb.WriteString("\n")
+	sb.WriteString("\n\n")
+
+	// 8. 相似规则检查（始终渲染）
+	sb.WriteString("---\n\n")
+	sb.WriteString("## 8. 相似规则检查\n\n")
+	if len(similarRules) > 0 {
+		sb.WriteString("相似候选规则：\n\n")
+		for _, sr := range similarRules {
+			sb.WriteString(fmt.Sprintf("- [[%s#%s|%s]]\n", GetCandidateRulePath(cfg), sr.CRID+"｜"+sr.ShortCode+"｜"+sr.RuleName, sr.CRID))
+			sb.WriteString(fmt.Sprintf("  - 相似原因：%s\n", sr.Reason))
+			sb.WriteString(fmt.Sprintf("  - 相似级别：%s\n", sr.Level))
+		}
+		sb.WriteString("\n处理建议：\n\n")
+		sb.WriteString("- [ ] 新建独立规则\n")
+		sb.WriteString("- [ ] 合并到已有规则（作为补充来源）\n")
+		sb.WriteString("- [ ] 保留但标记可能与已有规则冲突\n")
+		sb.WriteString("- [ ] 废弃（与已有规则重复）\n")
+		sb.WriteString("\n")
+	} else {
+		sb.WriteString("相似候选规则：暂无\n\n")
+	}
 
 	return sb.String()
 }

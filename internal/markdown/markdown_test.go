@@ -67,7 +67,7 @@ func TestRenderCandidateRules(t *testing.T) {
 		t.Fatalf("生成 ID 失败: %v", err)
 	}
 
-	md := RenderCandidateRules(nil, ids, result, result.CandidateRules)
+	md := RenderCandidateRules(nil, ids, result, result.CandidateRules, nil)
 
 	// 验证包含必要元素
 	if len(md) == 0 {
@@ -90,11 +90,11 @@ func TestRenderCandidateRules(t *testing.T) {
 func mockGenerateIDs(result *model.ExtractionResult, now time.Time) (*model.DocumentIDs, error) {
 	// 简化的 ID 生成，用于测试
 	return &model.DocumentIDs{
-		RawID:        "RAW-POS-SAFETY-20260609-001",
-		QAID:         "QA-POS-SAFETY-20260609-001",
+		RawID:        "RAW-ACCOUNT-SAFETY-20260609-001",
+		QAID:         "QA-ACCOUNT-SAFETY-20260609-001",
 		CandidateIDs: []string{
-			"CR-BUY-SAFETY-20260609-001",
-			"CR-POS-ACCOUNT-20260609-002",
+			"CR-VALUATION-SAFETY-20260609-001",
+			"CR-ACCOUNT-POS-20260609-002",
 			"CR-RISK-PLAN-20260609-003",
 		},
 	}, nil

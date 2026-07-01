@@ -425,7 +425,7 @@ func hasNegativeContext(text, phrase string) bool {
 	// 检查整个文本中是否包含否定关键词（没有、不、避免等）
 	// 这用于识别上下文中的否定表达（如"没有绝对安全"、"不保证盈利"等）
 	negativeContextKeywords := []string{
-		"没有", "不", "避免", "杜绝", "禁止", "勿", "别",
+		"没有", "不", "避免", "杜绝", "禁止", "严禁", "勿", "别", "不适用",
 	}
 	for _, keyword := range negativeContextKeywords {
 		if strings.Contains(text, keyword) {

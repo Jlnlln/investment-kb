@@ -6,6 +6,7 @@ type CandidateRule struct {
 	RuleName              string   `json:"rule_name"`
 	DomainCode            string   `json:"domain_code"`
 	TopicCode             string   `json:"topic_code"`
+	OriginalDomainCode    string   `json:"-"` // AI 原始 domain_code（程序设置，不由 AI 生成）
 	SuggestedFormalRuleID string   `json:"suggested_formal_rule_id"`
 	RuleContent           string   `json:"rule_content"`
 	TriggerConditions     []string `json:"trigger_conditions"`

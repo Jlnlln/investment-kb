@@ -12,7 +12,9 @@ import (
 	"time"
 
 	"investment-kb/internal/ai"
+	"investment-kb/internal/classify"
 	"investment-kb/internal/config"
+	"investment-kb/internal/dedup"
 	"investment-kb/internal/idgen"
 	"investment-kb/internal/markdown"
 	"investment-kb/internal/model"
@@ -22,11 +24,12 @@ import (
 
 // ExtractOptions 提取选项
 type ExtractOptions struct {
-	InputPath  string
-	Source     string
-	DryRun     bool
-	Mock       bool
-	ConfigPath string
+	InputPath      string
+	Source         string
+	DryRun         bool
+	Mock           bool
+	AllowDuplicate bool
+	ConfigPath     string
 }
 
 // 哈希管理（内联）
@@ -138,8 +141,63 @@ func Extract(opts *ExtractOptions) error {
 
 	// 4.2 检查是否重复导入
 	if checkHash(result.RawHash) {
-		fmt.Printf("⚠️  检测到可能重复导入：原文哈希已存在 (%s)\n", result.RawHash)
-		fmt.Printf("   V1 可以暂时继续导入，后续可支持 --allow-duplicate 控制是否允许重复导入。\n")
+		if !opts.AllowDuplicate {
+			return fmt.Errorf("检测到重复导入：原文哈希已存在 (%s)。如需强制导入，请加 --allow-duplicate", result.RawHash)
+		}
+		fmt.Printf("⚠️  检测到重复导入：原文哈希已存在 (%s)，因启用 --allow-duplicate，继续写入\n", result.RawHash)
+	}
+
+	// 4.5 候选规则去重：同一篇材料下，rule_name 相同则只保留第一条
+	result.CandidateRules = deduplicateCandidateRules(result.CandidateRules)
+
+	// 4.6 领域分类映射：AI domain_code 为"建议"，程序做二次分类
+	fmt.Printf("🔍 领域分类映射...\n")
+	for i := range result.CandidateRules {
+		rule := &result.CandidateRules[i]
+		// 先做基础映射（BUY→VALUATION 等）
+		mappedDomain := idgen.MapCRDomain(rule.DomainCode)
+		// 保存 AI 原始分类
+		rule.OriginalDomainCode = rule.DomainCode
+		// 程序二次分类
+		finalDomain := classify.ClassifyDomainWithLog(*rule, mappedDomain)
+		rule.DomainCode = finalDomain
+	}
+	// 同步映射顶层 domain_code
+	topMappedDomain := idgen.MapCRDomain(result.DomainCode)
+	topFinalDomain := classify.ClassifyDomainWithLog(model.CandidateRule{
+		RuleName:          result.Title,
+		RuleContent:       result.CoreConclusion,
+		TriggerConditions: result.ApplicableScenarios,
+		Actions:           result.RiskBoundaries,
+		DomainCode:        result.DomainCode,
+	}, topMappedDomain)
+	result.DomainCode = topFinalDomain
+
+	// 4.7 跨文章相似规则检查
+	fmt.Printf("🔍 跨文章相似规则检查...\n")
+	crLibraryPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
+	existingCRs, err := dedup.ParseExistingCRs(crLibraryPath)
+	if err != nil {
+		fmt.Printf("⚠️  读取候选规则库失败，跳过相似检查: %v\n", err)
+		existingCRs = nil
+	}
+	var similarResults []map[int][]dedup.SimilarRule // 每条新 CR 对应的相似规则
+	if existingCRs != nil {
+		similarResults = make([]map[int][]dedup.SimilarRule, 0)
+		for i, rule := range result.CandidateRules {
+			similarRules := dedup.CheckSimilarRules(
+				rule.DomainCode, rule.TopicCode, rule.RuleName,
+				rule.TriggerConditions, rule.Actions,
+				existingCRs,
+			)
+			if len(similarRules) > 0 {
+				for _, sr := range similarRules {
+					fmt.Printf("   🔗 %s 与已有规则 %s 相似（%s）\n", rule.RuleName, sr.CRID, sr.Level)
+				}
+			}
+			// 暂时用 slice 存储，后面渲染时使用
+			similarResults = append(similarResults, map[int][]dedup.SimilarRule{i: similarRules})
+		}
 	}
 
 	// 5. 生成编号
@@ -151,8 +209,10 @@ func Extract(opts *ExtractOptions) error {
 
 	// 6. 渲染 Markdown（在校验通过后才渲染）
 	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
-	qaMD := markdown.RenderKnowledgeCard(ids, result, now)
-	crMD := markdown.RenderCandidateRules(cfg, ids, result, result.CandidateRules)
+	qaMD := markdown.RenderKnowledgeCard(cfg, ids, result, now)
+	// 准备每条 CR 的相似规则数据
+	similarData := prepareSimilarData(similarResults, len(result.CandidateRules))
+	crMD := markdown.RenderCandidateRules(cfg, ids, result, result.CandidateRules, similarData)
 
 	var caseMD string
 	if result.ShouldGenerateCase && result.Case != nil {
@@ -186,6 +246,28 @@ func Extract(opts *ExtractOptions) error {
 	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.CandidateRule, crMD); err != nil {
 		return fmt.Errorf("写入候选规则失败: %w", err)
 	}
+
+	// 生成规则验证卡草稿
+	for i, crID := range ids.CandidateIDs {
+		if i >= len(result.CandidateRules) {
+			break
+		}
+		rule := result.CandidateRules[i]
+		var ruleSimilarRules []dedup.SimilarRule
+		if i < len(similarData) {
+			ruleSimilarRules = similarData[i]
+		}
+		vcContent, vcRelativePath := markdown.RenderValidationCard(cfg, crID, ids.QAID, ids.RawID, result, rule, ruleSimilarRules)
+		vcFullPath := filepath.Join(cfg.ObsidianVaultPath, vcRelativePath)
+		if err := os.MkdirAll(filepath.Dir(vcFullPath), 0755); err != nil {
+			return fmt.Errorf("创建验证卡目录失败: %w", err)
+		}
+		if err := os.WriteFile(vcFullPath, []byte(vcContent), 0644); err != nil {
+			return fmt.Errorf("写入验证卡失败 %s: %w", crID, err)
+		}
+		fmt.Printf("   ✅ %s 验证卡\n", crID)
+	}
+
 	for _, crID := range ids.CandidateIDs {
 		fmt.Printf("   ✅ %s\n", crID)
 	}
@@ -211,6 +293,26 @@ func Extract(opts *ExtractOptions) error {
 
 	fmt.Printf("\n✅ 完成\n")
 	return nil
+}
+
+// deduplicateCandidateRules 对同一篇材料下的候选规则去重
+// 去重规则：rule_name 相同则只保留第一条（保留顺序）
+func deduplicateCandidateRules(rules []model.CandidateRule) []model.CandidateRule {
+	if len(rules) <= 1 {
+		return rules
+	}
+	seen := make(map[string]bool, len(rules))
+	result := make([]model.CandidateRule, 0, len(rules))
+	for _, rule := range rules {
+		key := rule.RuleName
+		if seen[key] {
+			fmt.Printf("   ⚠️  去重：跳过重复候选规则「%s」\n", rule.RuleName)
+			continue
+		}
+		seen[key] = true
+		result = append(result, rule)
+	}
+	return result
 }
 
 // callAI 调用 AI 获取 ExtractionResult
@@ -319,11 +421,48 @@ func validateExtractionResult(result *model.ExtractionResult, rawText, source st
 	return nil
 }
 
-// checkAbsoluteClaims 检查绝对化收益表达
+// absoluteClaimKeywords 绝对化收益关键词列表
+var absoluteClaimKeywords = []string{
+	"保证盈利",
+	"保证上涨",
+	"没有亏损风险",
+	"必然上涨",
+	"一定上涨",
+	"一定赚钱",
+	"判断错了也不会亏",
+	"只赚不亏",
+	"无风险",
+	"稳赚不赔",
+	"稳赚",
+	"绝对安全",
+	"必胜",
+	"直接满仓",
+	"满仓买入",
+	"应该满仓",
+	"必须满仓",
+	"可以满仓",
+	"应直接满仓",
+	"可直接满仓",
+	"高确定性时可直接满仓",
+	"梭哈",
+	"全仓押注",
+	"全仓买入",
+	"一把梭哈",
+}
+
+// negationMarkers 否定标记（按长度降序，优先匹配长词，避免短词误截断）
+var negationMarkers = []string{
+	"不等于", "并非", "不代表", "不意味着", "不能保证", "不能", "不建议", "不要", "不可", "不会",
+	"没有", "不存在", "不是", "无法", "无须", "无需", "避免", "杜绝", "禁止", "严禁", "而非", "勿", "别",
+	"不",
+}
+
+// checkAbsoluteClaims 检查绝对化收益表达（支持否定语境放行）
 func checkAbsoluteClaims(result *model.ExtractionResult) error {
 	claims := []string{
 		result.Summary,
 		result.CoreConclusion,
+		result.MyUnderstanding,
 	}
 
 	for _, logic := range result.CoreLogic {
@@ -344,32 +483,74 @@ func checkAbsoluteClaims(result *model.ExtractionResult) error {
 		claims = append(claims, rule.NotApplicable...)
 	}
 
-	claims = append(claims, result.MyUnderstanding)
-
-	// 绝对化收益关键词列表
-	absoluteClaims := []string{
-		"保证盈利",
-		"没有亏损风险",
-		"必然上涨",
-		"一定赚钱",
-		"判断错了也不会亏",
-		"只赚不亏",
-		"无风险",
-		"稳赚",
-		"绝对安全",
-		"必胜",
-	}
-
-	// 检查每个关键词
 	for _, claim := range claims {
-		for _, keyword := range absoluteClaims {
-			if strings.Contains(claim, keyword) {
-				return fmt.Errorf("AI 输出包含绝对化收益表达：%s。请调整 Prompt 或人工检查后重试。", keyword)
-			}
+		if err := checkAbsoluteClaimInText(claim); err != nil {
+			return err
 		}
 	}
 
 	return nil
+}
+
+// checkAbsoluteClaimInText 检查单条文本中的绝对化收益表达
+// 对每个危险词查找所有出现位置，取前后 24 个 rune 的上下文（不含关键词本身），
+// 若上下文中存在否定标记则放行，否则返回 hard error。
+func checkAbsoluteClaimInText(text string) error {
+	if text == "" {
+		return nil
+	}
+
+	runes := []rune(text)
+	for _, keyword := range absoluteClaimKeywords {
+		keywordRunes := []rune(keyword)
+		if len(keywordRunes) > len(runes) {
+			continue
+		}
+
+		for i := 0; i <= len(runes)-len(keywordRunes); i++ {
+			// 匹配关键词
+			match := true
+			for j := 0; j < len(keywordRunes); j++ {
+				if runes[i+j] != keywordRunes[j] {
+					match = false
+					break
+				}
+			}
+			if !match {
+				continue
+			}
+
+			// 取关键词前后的上下文（不含关键词本身），按 rune 计数
+			beforeStart := i - 24
+			if beforeStart < 0 {
+				beforeStart = 0
+			}
+			before := runes[beforeStart:i]
+
+			afterEnd := i + len(keywordRunes) + 24
+			if afterEnd > len(runes) {
+				afterEnd = len(runes)
+			}
+			after := runes[i+len(keywordRunes):afterEnd]
+
+			// 检查上下文是否包含否定标记
+			context := string(before) + string(after)
+			if !hasNegationMarker(context) {
+				return fmt.Errorf("AI 输出包含绝对化收益表达：%s。请调整 Prompt 或人工检查后重试。", keyword)
+			}
+		}
+	}
+	return nil
+}
+
+// hasNegationMarker 检查文本中是否包含否定标记
+func hasNegationMarker(context string) bool {
+	for _, marker := range negationMarkers {
+		if strings.Contains(context, marker) {
+			return true
+		}
+	}
+	return false
 }
 
 // warnOnConsistentRuleTypes 检查 candidate_rules 类型是否过于集中
@@ -399,18 +580,25 @@ func warnOnConsistentRuleTypes(rules []model.CandidateRule) {
 }
 
 // WarnRuleTypeDomainMismatch 检查买入规则的 domain_code 是否匹配
+// 新系统中买入规则映射到 VALUATION，但旧分类 BUY 也兼容
 // 返回需要打印的 warning 信息列表
 func WarnRuleTypeDomainMismatch(result *model.ExtractionResult) []string {
 	var warnings []string
 
+	validBuyDomains := map[string]bool{
+		"BUY":       true,
+		"VALUATION": true,
+	}
+
 	for _, rule := range result.CandidateRules {
 		// 只检查 rule_type 为 "买入规则" 的
 		if rule.RuleType == "买入规则" {
-			// 检查 domain_code 是否为 "BUY"
-			if rule.DomainCode != "BUY" {
-				warning := fmt.Sprintf("候选规则分类可能不一致：买入规则「%s」的 domain_code=%s，建议检查是否应为 BUY-%s。",
+			// 检查 domain_code 是否为有效买入领域
+			if !validBuyDomains[rule.DomainCode] {
+				warning := fmt.Sprintf("候选规则分类可能不一致：买入规则「%s」的 domain_code=%s，建议检查是否应为 VALUATION-%s 或 BUY-%s。",
 					rule.RuleName,
 					rule.DomainCode,
+					rule.TopicCode,
 					rule.TopicCode)
 				warnings = append(warnings, warning)
 			}
@@ -418,4 +606,17 @@ func WarnRuleTypeDomainMismatch(result *model.ExtractionResult) []string {
 	}
 
 	return warnings
+}
+
+// prepareSimilarData 将 map 格式的相似结果转换为按索引排列的 slice
+func prepareSimilarData(similarResults []map[int][]dedup.SimilarRule, ruleCount int) [][]dedup.SimilarRule {
+	data := make([][]dedup.SimilarRule, ruleCount)
+	for _, m := range similarResults {
+		for idx, rules := range m {
+			if idx < ruleCount {
+				data[idx] = rules
+			}
+		}
+	}
+	return data
 }

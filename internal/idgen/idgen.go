@@ -80,6 +80,23 @@ func SaveState() error {
 	return nil
 }
 
+// MapCRDomain 将旧/中间领域代码映射到新系统正式领域代码
+// 用于候选规则 CR 编号前缀，使其符合 v1.5 规则体系
+func MapCRDomain(oldDomain string) string {
+	switch oldDomain {
+	case "BUY":
+		return "VALUATION"
+	case "POS":
+		return "ACCOUNT"
+	case "ALLOC":
+		return "REBALANCE"
+	case "CASH", "VALUATION", "REBALANCE", "EXPOSURE", "SCORE", "STATE", "TARGET", "ETF", "ACCOUNT", "RISK":
+		return oldDomain
+	default:
+		return oldDomain
+	}
+}
+
 // GenerateIDs 生成文档编号
 func GenerateIDs(result *model.ExtractionResult, now time.Time) (*model.DocumentIDs, error) {
 	if err := LoadState(); err != nil {
@@ -108,9 +125,9 @@ func GenerateIDs(result *model.ExtractionResult, now time.Time) (*model.Document
 		ids.CaseID = fmt.Sprintf("%s-%s-%03d", casePrefix, dateStr, caseSeq)
 	}
 
-	// CR IDs（全局递增，不按 domain/topic 分组）
-	for range result.CandidateRules {
-		crPrefix := "CR"
+	// CR IDs（按映射后的新系统领域 + 日期单独递增）
+	for _, rule := range result.CandidateRules {
+		crPrefix := fmt.Sprintf("CR-%s", MapCRDomain(rule.DomainCode))
 		crSeq := nextSequence(dateStr, crPrefix)
 		crID := fmt.Sprintf("%s-%s-%03d", crPrefix, dateStr, crSeq)
 		ids.CandidateIDs = append(ids.CandidateIDs, crID)

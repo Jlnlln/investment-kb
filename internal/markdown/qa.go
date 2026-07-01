@@ -5,11 +5,12 @@ import (
 	"strings"
 	"time"
 
+	"investment-kb/internal/config"
 	"investment-kb/internal/model"
 )
 
 // RenderKnowledgeCard 生成知识卡片 QA Markdown
-func RenderKnowledgeCard(ids *model.DocumentIDs, result *model.ExtractionResult, now time.Time) string {
+func RenderKnowledgeCard(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, now time.Time) string {
 	var sb strings.Builder
 
 	// 分隔线
@@ -18,24 +19,26 @@ func RenderKnowledgeCard(ids *model.DocumentIDs, result *model.ExtractionResult,
 	// 标题
 	sb.WriteString(fmt.Sprintf("# %s｜%s\n\n", ids.QAID, result.Title))
 
-	// 元数据
-	sb.WriteString(fmt.Sprintf("原始材料：%s｜%s\n", ids.RawID, result.Title))
+	// 元数据（使用 WikiLink）
+	sb.WriteString(fmt.Sprintf("原始材料：%s\n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), ids.RawID)))
 	sb.WriteString(fmt.Sprintf("来源：%s\n", result.Source))
 	sb.WriteString(fmt.Sprintf("主题标签：%s\n", formatTags(result.Tags)))
 	sb.WriteString(fmt.Sprintf("整理时间：%s\n\n", now.Format("2006-01-02")))
 
-	// 关联候选规则
+	// 关联候选规则（使用 WikiLink）
 	sb.WriteString("关联候选规则：\n\n")
 	for i, crID := range ids.CandidateIDs {
 		if i < len(result.CandidateRules) {
-			sb.WriteString(fmt.Sprintf("- %s｜%s\n", crID, result.CandidateRules[i].RuleName))
+			rule := result.CandidateRules[i]
+			crHeading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
+			sb.WriteString(fmt.Sprintf("- %s\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), crHeading, crID)))
 		}
 	}
 	sb.WriteString("\n")
 
-	// 关联案例
+	// 关联案例（使用 WikiLink）
 	if ids.CaseID != "" {
-		sb.WriteString(fmt.Sprintf("关联案例：%s｜%s\n", ids.CaseID, result.Case.CaseName))
+		sb.WriteString(fmt.Sprintf("关联案例：%s\n", ObsidianHeadingLink(GetMarketCasePath(cfg), JoinHeading(ids.CaseID, result.Case.CaseName), ids.CaseID)))
 	} else {
 		sb.WriteString("关联案例：暂不单独生成市场案例")
 	}
@@ -90,11 +93,26 @@ func RenderKnowledgeCard(ids *model.DocumentIDs, result *model.ExtractionResult,
 		rulesByType[rule.RuleType] = append(rulesByType[rule.RuleType], i)
 	}
 
-	for ruleType, indices := range rulesByType {
-		sb.WriteString(fmt.Sprintf("### 6.%s %s\n\n", getRuleTypeSuffix(ruleType), ruleType))
+	// 按固定规则类型顺序输出，保证编号稳定
+	ruleTypeOrder := []string{
+		"买入规则", "加仓规则", "减仓规则", "卖出规则",
+		"仓位规则", "账户适配规则", "风控规则", "情绪控制规则",
+		"复盘规则", "配置规则",
+	}
+	sectionNum := 1
+	for _, ruleType := range ruleTypeOrder {
+		indices, ok := rulesByType[ruleType]
+		if !ok {
+			continue
+		}
+		sb.WriteString(fmt.Sprintf("### 6.%d %s\n\n", sectionNum, ruleType))
+		sectionNum++
 		for _, idx := range indices {
-			sb.WriteString(fmt.Sprintf("- %s｜%s\n\n", ids.CandidateIDs[idx], result.CandidateRules[idx].RuleName))
-			sb.WriteString(result.CandidateRules[idx].RuleContent)
+			rule := result.CandidateRules[idx]
+			crID := ids.CandidateIDs[idx]
+			crHeading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
+			sb.WriteString(fmt.Sprintf("- %s\n\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), crHeading, crID)))
+			sb.WriteString(rule.RuleContent)
 			sb.WriteString("\n\n")
 		}
 	}
@@ -103,7 +121,7 @@ func RenderKnowledgeCard(ids *model.DocumentIDs, result *model.ExtractionResult,
 	sb.WriteString("---\n\n")
 	sb.WriteString("## 7. 关联案例\n\n")
 	if ids.CaseID != "" {
-		sb.WriteString(fmt.Sprintf("见：%s｜%s\n\n", ids.CaseID, result.Case.CaseName))
+		sb.WriteString(fmt.Sprintf("见：%s\n\n", ObsidianHeadingLink(GetMarketCasePath(cfg), JoinHeading(ids.CaseID, result.Case.CaseName), ids.CaseID)))
 	} else {
 		sb.WriteString("暂不单独生成市场案例。\n\n")
 		sb.WriteString("原因：")
@@ -122,10 +140,4 @@ func RenderKnowledgeCard(ids *model.DocumentIDs, result *model.ExtractionResult,
 	sb.WriteString("\n")
 
 	return sb.String()
-}
-
-// getRuleTypeSuffix 获取规则类型后缀（用于排序）
-func getRuleTypeSuffix(ruleType string) string {
-	// 简单映射，实际可以更复杂
-	return "1"
 }

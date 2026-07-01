@@ -6,7 +6,7 @@ func MockExtractionResult() *ExtractionResult {
 	return &ExtractionResult{
 		Title:      "安全边际与错失买入机会如何平衡",
 		Source:     "陈老师问答",
-		DomainCode: "POS",
+		DomainCode: "ACCOUNT",
 		TopicCode:  "SAFETY",
 		Tags:       []string{"仓位管理", "安全边际", "踏空风险", "账户状态", "容错计划"},
 		Summary:    "这段问答讨论的是投资者如何在追求安全边际和避免错失买入机会之间取得平衡。",
@@ -47,7 +47,7 @@ func MockExtractionResult() *ExtractionResult {
 			{
 				RuleType:              "买入规则",
 				RuleName:              "高概率区间先建底仓",
-				DomainCode:            "BUY",
+				DomainCode:            "VALUATION",
 				TopicCode:             "SAFETY",
 				SuggestedFormalRuleID: "BUY-001",
 				RuleContent:           "当宽基指数进入历史高概率买入区间后，应先建立第一笔仓位，不应因为等待极端低点而完全空仓。",
@@ -86,8 +86,8 @@ func MockExtractionResult() *ExtractionResult {
 			{
 				RuleType:              "仓位规则",
 				RuleName:              "账户状态决定仓位力度",
-				DomainCode:            "POS",
-				TopicCode:             "ACCOUNT",
+				DomainCode:            "ACCOUNT",
+				TopicCode:             "POS",
 				SuggestedFormalRuleID: "POS-002",
 				RuleContent:           "买入决策必须结合账户当前状态。低成本持仓者和空仓者的安全边际策略完全不同。",
 				TriggerConditions: []string{

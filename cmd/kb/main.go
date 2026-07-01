@@ -18,6 +18,7 @@ func main() {
 	source := flag.String("source", "", "来源（如：陈老师问答）")
 	dryRun := flag.Bool("dry-run", false, "只打印 Markdown，不写入 Obsidian")
 	mock := flag.Bool("mock", false, "使用 Mock 数据，不调用 AI")
+	allowDuplicate := flag.Bool("allow-duplicate", false, "允许重复导入（默认同一 hash 禁止重复写入）")
 	configPath := flag.String("config", "config.yaml", "配置文件路径")
 	flag.Parse()
 
@@ -42,11 +43,12 @@ func main() {
 
 	// 执行提取
 	opts := &app.ExtractOptions{
-		InputPath:  *inputPath,
-		Source:     *source,
-		DryRun:     *dryRun,
-		Mock:       *mock,
-		ConfigPath: *configPath,
+		InputPath:      *inputPath,
+		Source:         *source,
+		DryRun:         *dryRun,
+		Mock:           *mock,
+		AllowDuplicate: *allowDuplicate,
+		ConfigPath:     *configPath,
 	}
 
 	if err := app.Extract(opts); err != nil {

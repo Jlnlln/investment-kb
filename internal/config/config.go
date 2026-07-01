@@ -17,10 +17,12 @@ type Config struct {
 
 // Files 文件路径配置
 type Files struct {
-	RawMaterial    string `yaml:"raw_material"`
-	QA             string `yaml:"qa"`
-	MarketCase     string `yaml:"market_case"`
-	CandidateRule  string `yaml:"candidate_rule"`
+	RawMaterial          string `yaml:"raw_material"`
+	QA                   string `yaml:"qa"`
+	MarketCase           string `yaml:"market_case"`
+	CandidateRule        string `yaml:"candidate_rule"`
+	ValidationCardTemplate string `yaml:"validation_card_template"`
+	ValidationCardDir      string `yaml:"validation_card_dir"`
 }
 
 // AI 配置

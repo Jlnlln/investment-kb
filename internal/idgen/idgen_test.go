@@ -26,7 +26,7 @@ func TestGenerateIDs(t *testing.T) {
 	if ids.RawID == "" {
 		t.Error("RawID 为空")
 	}
-	expectedRawPrefix := "RAW-POS-SAFETY-20260609-001"
+	expectedRawPrefix := "RAW-ACCOUNT-SAFETY-20260609-001"
 	if ids.RawID != expectedRawPrefix {
 		t.Errorf("RawID 格式错误: got %s, want %s", ids.RawID, expectedRawPrefix)
 	}
@@ -35,7 +35,7 @@ func TestGenerateIDs(t *testing.T) {
 	if ids.QAID == "" {
 		t.Error("QAID 为空")
 	}
-	expectedQAPrefix := "QA-POS-SAFETY-20260609-001"
+	expectedQAPrefix := "QA-ACCOUNT-SAFETY-20260609-001"
 	if ids.QAID != expectedQAPrefix {
 		t.Errorf("QAID 格式错误: got %s, want %s", ids.QAID, expectedQAPrefix)
 	}
@@ -45,10 +45,10 @@ func TestGenerateIDs(t *testing.T) {
 		t.Errorf("CaseID 应为空，实际为: %s", ids.CaseID)
 	}
 
-	// 验证 CR IDs（全局递增）
-	expectedCR1 := "CR-20260609-001"
-	expectedCR2 := "CR-20260609-002"
-	expectedCR3 := "CR-20260609-003"
+	// 验证 CR IDs（按映射后的新系统领域 + 日期单独递增）
+	expectedCR1 := "CR-VALUATION-20260609-001"
+	expectedCR2 := "CR-ACCOUNT-20260609-001"
+	expectedCR3 := "CR-RISK-20260609-001"
 	if len(ids.CandidateIDs) < 3 {
 		t.Fatalf("CR IDs 数量不足: got %d, want >= 3", len(ids.CandidateIDs))
 	}
