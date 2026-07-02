@@ -37,6 +37,16 @@ type ExtractionResult struct {
 	CandidateRules         []CandidateRule `json:"candidate_rules"`
 	MyUnderstanding        string          `json:"my_understanding"`
 	RawHash                string          `json:"-"` // 原文 sha256，程序计算，不由 AI 生成
+	SourceMeta             SourceMeta      `json:"-"` // 来源追溯信息，程序计算，不由 AI 生成
+}
+
+// SourceMeta 记录所有输出对象都需要携带的来源追溯信息。
+type SourceMeta struct {
+	SourceFile   string
+	RawHash      string
+	CleanedHash  string
+	RawID        string
+	MaterialType MaterialType
 }
 
 // LogicBlock 是核心逻辑的一个逻辑块

@@ -321,6 +321,11 @@ var negativeWords = []string{
 	"不能一次性全仓押注",
 	"不能照搬满仓计划",
 	"不能照搬低成本持仓者的满仓计划",
+	"禁止全仓押注",
+	"禁止单边全仓押注",
+	"禁止一次性全仓",
+	"严禁全仓押注",
+	"严禁一次性全仓",
 }
 
 // 肯定执行词（失败表达）
@@ -404,37 +409,23 @@ func hasPositivePhrase(text string) bool {
 	return false
 }
 
-// debugHasPositivePhrase 调试版本
 // hasNegativeContext 检查文本中是否有否定词或警告短语
 func hasNegativeContext(text, phrase string) bool {
-	// 将文本分割成单词
-	words := strings.Fields(text)
-
-	// 检查文本中的所有单词是否包含否定词或警告短语
-	for _, word := range words {
-		if isNegativePhrase(word) {
-			// 找到明确的否定词，阻止正面短语
-			return true
-		}
-		if isWarningPhrase(word) {
-			// 警告短语匹配，不阻止流程
-			return false
-		}
-	}
-
-	// 检查整个文本中是否包含否定关键词（没有、不、避免等）
-	// 这用于识别上下文中的否定表达（如"没有绝对安全"、"不保证盈利"等）
-	negativeContextKeywords := []string{
-		"没有", "不", "避免", "杜绝", "禁止", "严禁", "勿", "别", "不适用",
-	}
-	for _, keyword := range negativeContextKeywords {
-		if strings.Contains(text, keyword) {
-			// 找到否定关键词，阻止正面短语
+	// 先检查整个文本是否包含 negativeWords 中的任意短语（子串匹配）
+	for _, neg := range negativeWords {
+		if strings.Contains(text, neg) {
 			return true
 		}
 	}
 
-	// 没有找到否定上下文，允许正面短语
+	// 再检查常见否定关键词是否出现在 phrase 附近（简单启发）
+	negKeywords := []string{"没有", "不", "避免", "杜绝", "禁止", "严禁", "勿", "别", "不适用", "无法", "不能", "不得", "不要", "不可"}
+	for _, kw := range negKeywords {
+		if strings.Contains(text, kw) {
+			return true
+		}
+	}
+
 	return false
 }
 

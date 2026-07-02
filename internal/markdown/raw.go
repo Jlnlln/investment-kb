@@ -9,33 +9,185 @@ import (
 	"investment-kb/internal/model"
 )
 
-// ValidateRawConsistency 校验 RAW 标题与原文内容的一致性
-// 如果标题关键词在原文中完全不出现，返回警告信息
+// ValidateRawConsistency 校验 RAW 标题、材料类型和原文内容的一致性。
 func ValidateRawConsistency(result *model.ExtractionResult, rawText string) []string {
 	var warnings []string
-	
-	title := result.Title
-	
-	// 简化校验：检查标题中的连续子串（4-6个字符）是否出现在原文中
-	// 对于中文，提取滑动窗口子串
-	if len(title) >= 4 {
-		found := false
-		// 提取标题中的 4-6 字符子串（滑动窗口）
-		for i := 0; i <= len(title)-4; i++ {
-			substr := title[i:i+4]
-			// 跳过纯标点或数字
-			if isMeaningful(substr) && strings.Contains(rawText, substr) {
-				found = true
-				break
-			}
-		}
-		if !found {
-			warnings = append(warnings, fmt.Sprintf("⚠️  标题关键词与原文内容可能存在错配（标题：%s）", title))
-			warnings = append(warnings, "   建议检查输入文件是否与内容匹配（mock 模式下可能出现此警告）")
+
+	if strings.TrimSpace(result.Title) == "" || strings.TrimSpace(rawText) == "" {
+		warnings = append(warnings, "标题或原文为空，无法完成一致性校验")
+		return warnings
+	}
+
+	titleKeywords := coreKeywords(result.Title)
+	if !hasEnoughKeywordMatches(rawText, titleKeywords) {
+		warnings = append(warnings, fmt.Sprintf("标题核心关键词与原文内容不匹配（标题：%s，关键词：%s）", result.Title, strings.Join(titleKeywords, "/")))
+	}
+
+	if result.MaterialType == model.MaterialTypeMacroKnowledge {
+		topicKeywords := macroTopicKeywords(result)
+		if len(topicKeywords) > 0 && !containsAnyKeyword(rawText, topicKeywords) {
+			warnings = append(warnings, fmt.Sprintf("macro_knowledge 核心主题关键词未在原文中出现（主题关键词：%s）", strings.Join(topicKeywords, "/")))
 		}
 	}
-	
+
 	return warnings
+}
+
+func containsAnyKeyword(text string, keywords []string) bool {
+	for _, keyword := range keywords {
+		if keyword != "" && strings.Contains(text, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasEnoughKeywordMatches(text string, keywords []string) bool {
+	keywords = uniqueStrings(keywords)
+	if len(keywords) == 0 {
+		return false
+	}
+	matched := 0
+	for _, keyword := range keywords {
+		if strings.Contains(text, keyword) {
+			matched++
+		}
+	}
+	if len(keywords) <= 2 {
+		return matched >= 1
+	}
+	return matched >= 2 || float64(matched)/float64(len(keywords)) >= 0.5
+}
+
+var investmentKeywordDict = []string{
+	"安全边际", "创业板", "买入机会", "科创", "沪深", "宽基", "周期", "极限", "差值", "估值", "仓位", "账户", "风险", "利率", "通胀", "消费", "收入", "利润", "内卷", "配置", "风控", "踏空",
+}
+
+var genericTitleWords = map[string]bool{
+	"参考": true, "理解": true, "逻辑": true, "关系": true, "影响": true, "观察": true, "判断": true, "问题": true, "分析": true, "思考": true,
+	"如何": true, "为什么": true, "怎么": true, "以及": true, "之间": true, "平衡": true,
+}
+
+func coreKeywords(text string) []string {
+	text = stripDocumentPrefix(text)
+	parts := splitTitleParts(text)
+	seen := make(map[string]bool)
+	var keywords []string
+
+	addKeyword := func(keyword string) {
+		keyword = strings.TrimSpace(keyword)
+		if keyword == "" || genericTitleWords[keyword] || !isChinesePhrase(keyword) || seen[keyword] {
+			return
+		}
+		seen[keyword] = true
+		keywords = append(keywords, keyword)
+	}
+
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" || genericTitleWords[part] || !isChinesePhrase(part) {
+			continue
+		}
+		matchedDict := false
+		for _, word := range investmentKeywordDict {
+			if strings.Contains(part, word) {
+				addKeyword(word)
+				matchedDict = true
+			}
+		}
+		if matchedDict {
+			continue
+		}
+		runes := []rune(part)
+		if len(runes) >= 2 && len(runes) <= 6 {
+			addKeyword(part)
+		}
+	}
+
+	return keywords
+}
+
+func stripDocumentPrefix(text string) string {
+	text = strings.TrimSpace(text)
+	parts := strings.Split(text, "｜")
+	if len(parts) > 1 && looksLikeDocumentID(parts[0]) {
+		return strings.Join(parts[1:], "｜")
+	}
+	return text
+}
+
+func looksLikeDocumentID(text string) bool {
+	upper := strings.ToUpper(strings.TrimSpace(text))
+	prefixes := []string{"RAW-", "QA-", "CR-", "KNOW-", "CASE-", "OBS-"}
+	for _, prefix := range prefixes {
+		if strings.HasPrefix(upper, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func splitTitleParts(text string) []string {
+	separators := []string{"｜", "|", "/", "-", "_", "：", ":", "，", "、", "与", "和", "及", "的", "对", "于", " ", "\t", "\r", "\n"}
+	parts := []string{text}
+	for _, sep := range separators {
+		var next []string
+		for _, part := range parts {
+			for _, p := range strings.Split(part, sep) {
+				p = strings.TrimSpace(p)
+				if p != "" {
+					next = append(next, p)
+				}
+			}
+		}
+		parts = next
+	}
+	return parts
+}
+
+func isChinesePhrase(s string) bool {
+	runes := []rune(s)
+	if len(runes) < 2 {
+		return false
+	}
+	for _, r := range runes {
+		if r < 0x4e00 || r > 0x9fff {
+			return false
+		}
+	}
+	return true
+}
+
+func macroTopicKeywords(result *model.ExtractionResult) []string {
+	keywordsByTopic := map[string][]string{
+		"RATE":   []string{"利率", "降息", "加息", "货币政策"},
+		"POLICY": []string{"政策", "调控", "财政", "货币政策"},
+		"ECON":   []string{"经济", "周期", "复苏", "收入", "利润"},
+		"GROW":   []string{"增长", "复苏", "需求", "收入"},
+		"DEBT":   []string{"债务", "信用", "杠杆"},
+		"CREDIT": []string{"社融", "信用", "流动性"},
+	}
+	var keywords []string
+	keywords = append(keywords, keywordsByTopic[result.TopicCode]...)
+	keywords = append(keywords, coreKeywords(result.CoreConclusion)...)
+	for _, item := range result.ReusableUnderstanding {
+		keywords = append(keywords, coreKeywords(item)...)
+	}
+	return uniqueStrings(keywords)
+}
+
+func uniqueStrings(items []string) []string {
+	seen := make(map[string]bool)
+	var result []string
+	for _, item := range items {
+		item = strings.TrimSpace(item)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		result = append(result, item)
+	}
+	return result
 }
 
 // isMeaningful 检查字符串是否包含有意义的内容（非纯标点/数字）
@@ -47,36 +199,6 @@ func isMeaningful(s string) bool {
 	}
 	return false
 }
-
-// extractTitleKeywords 从标题中提取关键词
-func extractTitleKeywords(title string) []string {
-	// 按常见分隔符分割
-	separators := []string{"｜", "|", "与", "和", "对", "的", "如何", "为什么", "怎么"}
-	processed := title
-	for _, sep := range separators {
-		processed = strings.ReplaceAll(processed, sep, " ")
-	}
-	
-	words := strings.Fields(processed)
-	var keywords []string
-	for _, word := range words {
-		word = strings.TrimSpace(word)
-		if len(word) >= 2 {
-			keywords = append(keywords, word)
-		}
-	}
-	return keywords
-}
-
-// truncateString 截断字符串
-func truncateString(s string, maxLen int) string {
-	if len(s) <= maxLen {
-		return s
-	}
-	return s[:maxLen] + "..."
-}
-
-
 
 // RenderRawMaterial 生成原始材料 RAW Markdown
 func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rawText string, now time.Time) string {
@@ -93,13 +215,7 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	sb.WriteString(fmt.Sprintf("主题标签：%s  \n", formatTags(result.Tags)))
 	sb.WriteString("整理状态：已整理  \n")
 	sb.WriteString(fmt.Sprintf("生成时间：%s  \n", now.Format("2006-01-02")))
-	if result.RawHash != "" {
-		sb.WriteString(fmt.Sprintf("原文哈希：%s  \n", result.RawHash))
-	}
-	// source_file 用于追溯原始输入文件，防止内容错配
-	if ids.SourceFile != "" {
-		sb.WriteString(fmt.Sprintf("来源文件：%s  \n", ids.SourceFile))
-	}
+	sb.WriteString(RenderSourceMetaLines(result.SourceMeta))
 	sb.WriteString("\n")
 
 	// 对应知识卡片/宏观理解卡/市场观察卡（根据 material_type 动态生成）

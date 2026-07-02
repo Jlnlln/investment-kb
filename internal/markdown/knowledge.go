@@ -29,6 +29,10 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 	fmt.Fprintf(&sb, "title: %s\n", result.Title)
 	fmt.Fprintf(&sb, "source: %s\n", result.Source)
 	fmt.Fprintf(&sb, "material_type: macro_knowledge\n")
+	fmt.Fprintf(&sb, "source_file: %s\n", result.SourceMeta.SourceFile)
+	fmt.Fprintf(&sb, "raw_hash: %s\n", result.SourceMeta.RawHash)
+	fmt.Fprintf(&sb, "cleaned_hash: %s\n", result.SourceMeta.CleanedHash)
+	fmt.Fprintf(&sb, "raw_id: %s\n", result.SourceMeta.RawID)
 	fmt.Fprintf(&sb, "layer: %s\n", layer)
 	fmt.Fprintf(&sb, "topic: %s\n", topic)
 	// tags 用 YAML 列表格式，Obsidian 才能识别

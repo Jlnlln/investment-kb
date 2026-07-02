@@ -1,10 +1,12 @@
 package idgen
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -41,21 +43,80 @@ func loadStateFile() error {
 	data, err := os.ReadFile(stateFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			// 文件不存在，使用空状态
+			state.Date = make(map[string]map[string]int)
 			return nil
 		}
-		return fmt.Errorf("读取状态文件失败: %w", err)
+		return fmt.Errorf("读取状态文件失败 %s: %w", stateFile, err)
 	}
 
-	if len(data) == 0 {
+	data = bytes.TrimPrefix(data, []byte{0xEF, 0xBB, 0xBF})
+	if len(bytes.TrimSpace(data)) == 0 {
+		state.Date = make(map[string]map[string]int)
 		return nil
 	}
 
-	if err := json.Unmarshal(data, &state.Date); err != nil {
-		return fmt.Errorf("解析状态文件失败: %w", err)
+	loaded := make(map[string]map[string]int)
+	if err := json.Unmarshal(data, &loaded); err != nil {
+		return fmt.Errorf("解析状态文件失败 %s: %w", stateFile, err)
 	}
+	if loaded == nil {
+		loaded = make(map[string]map[string]int)
+	}
+	state.Date = loaded
 
 	return nil
+}
+
+// SyncStateFromDisk 扫描 KNOW 目录，同步编号状态（防止 id_state.json 不一致）
+// 应在 LoadState() 之后调用
+func SyncStateFromDisk(vaultPath, knowDir string) {
+	state.Lock()
+	defer state.Unlock()
+
+	now := time.Now()
+	dateStr := now.Format("20060102")
+
+	// 确保日期条目存在
+	if state.Date[dateStr] == nil {
+		state.Date[dateStr] = make(map[string]int)
+	}
+
+	// 扫描 KNOW 目录
+	fullDir := filepath.Join(vaultPath, knowDir)
+	entries, err := os.ReadDir(fullDir)
+	if err != nil {
+		return
+	}
+
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") {
+			continue
+		}
+		// 跳过索引文件
+		if strings.HasPrefix(entry.Name(), "宏观理解卡索引") {
+			continue
+		}
+		// 解析 KNOW-ID｜title.md
+		name := strings.TrimSuffix(entry.Name(), ".md")
+		parts := strings.SplitN(name, "｜", 2)
+		if len(parts) < 2 {
+			continue
+		}
+		knowID := parts[0]
+		// 从 KNOW-ID 解析序号：KNOW-L2-ECON-20260702-001
+		idParts := strings.Split(knowID, "-")
+		if len(idParts) >= 6 {
+			prefix := strings.Join(idParts[:len(idParts)-1], "-")
+			// 提取序号
+			seqStr := idParts[len(idParts)-1]
+			var seq int
+			fmt.Sscanf(seqStr, "%d", &seq)
+			// 更新状态
+			if seq > state.Date[dateStr][prefix] {
+				state.Date[dateStr][prefix] = seq
+			}
+		}
+	}
 }
 
 // SaveState 保存编号状态

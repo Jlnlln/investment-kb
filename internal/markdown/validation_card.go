@@ -22,6 +22,17 @@ const DefaultValidationCardTemplate = `# 规则验证卡：{{RULE_NAME}}
 > **建议正式领域**: {{SUGGESTED_FORMAL_DOMAIN}}
 > **来源知识卡片**: {{SOURCE_QA_LINK}}
 > **来源原文**: {{SOURCE_RAW_LINK}}
+> **source_file**: {{SOURCE_FILE}}
+> **raw_hash**: {{RAW_HASH}}
+> **cleaned_hash**: {{CLEANED_HASH}}
+> **raw_id**: {{RAW_ID}}
+> **material_type**: {{MATERIAL_TYPE}}
+
+source_file: {{SOURCE_FILE}}
+raw_hash: {{RAW_HASH}}
+cleaned_hash: {{CLEANED_HASH}}
+raw_id: {{RAW_ID}}
+material_type: {{MATERIAL_TYPE}}
 
 ---
 
@@ -172,6 +183,11 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 		"{{SOURCE_QA_LINK}}":       ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(qaID, result.Title), qaID),
 		"{{SOURCE_RAW_LINK}}":      ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(rawID, result.Title), rawID),
 		"{{APPLICABLE_OBJECTS}}":   joinSimpleList(rule.ApplicableObjects),
+		"{{SOURCE_FILE}}":          result.SourceMeta.SourceFile,
+		"{{RAW_HASH}}":             result.SourceMeta.RawHash,
+		"{{CLEANED_HASH}}":         result.SourceMeta.CleanedHash,
+		"{{RAW_ID}}":               result.SourceMeta.RawID,
+		"{{MATERIAL_TYPE}}":        string(result.SourceMeta.MaterialType),
 	}
 
 	// 生成相似规则检查文本
@@ -210,8 +226,25 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 		}
 	}
 	content = strings.Join(lines, "\n")
+	content = ensureValidationSourceMetadata(content, result.SourceMeta)
 
 	return content
+}
+
+
+func ensureValidationSourceMetadata(content string, meta model.SourceMeta) string {
+	if strings.Contains(content, "source_file:") && strings.Contains(content, "cleaned_hash:") && strings.Contains(content, "raw_id:") {
+		return content
+	}
+	block := "\nsource_file: " + meta.SourceFile + "  \n" +
+		"raw_hash: " + meta.RawHash + "  \n" +
+		"cleaned_hash: " + meta.CleanedHash + "  \n" +
+		"raw_id: " + meta.RawID + "  \n" +
+		"material_type: " + string(meta.MaterialType) + "  \n"
+	if idx := strings.Index(content, "\n"); idx >= 0 {
+		return content[:idx+1] + block + content[idx+1:]
+	}
+	return content + block
 }
 
 // joinBulletList 将字符串数组转换为 Markdown 无序列表

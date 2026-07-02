@@ -202,13 +202,13 @@ func MockMacroKnowledgeResult() *ExtractionResult {
 	}
 }
 
-// MockMacroKnowledgeResult2 返回第二个 macro_knowledge Mock（不同 topic，用于测试多篇 KNOW 索引更新）
+// MockMacroKnowledgeResult2 返回第二个 macro_knowledge Mock（收入/利润主题，用于测试多篇 KNOW 索引更新）
 func MockMacroKnowledgeResult2() *ExtractionResult {
 	return &ExtractionResult{
-		Title:            "社融增速与流动性拐点的关系",
+		Title:            "收入与利润对经济复苏质量的解释",
 		Source:           "陈老师问答",
 		DomainCode:       "MACRO",
-		TopicCode:        "CREDIT",
+		TopicCode:        "ECON",
 		MaterialType:     MaterialTypeMacroKnowledge,
 		GenerateQA:       false,
 		GenerateCandidateRules: false,
@@ -217,38 +217,38 @@ func MockMacroKnowledgeResult2() *ExtractionResult {
 		GenerateObservationCard: false,
 		Tags: []string{
 			"投资/宏观理解",
-			"投资/L3政策流动性",
-			"投资/社融",
-			"投资/流动性",
-			"投资/信用扩张",
+			"投资/L2经济周期",
+			"投资/收入",
+			"投资/利润",
+			"投资/复苏质量",
 		},
-		Summary: "社融增速见底是流动性拐点的重要领先指标，通常领先市场底部 3-6 个月。",
-		CoreConclusion: "社融增速企稳回升 → 流动性改善 → 估值修复 → 市场见底。",
+		Summary: "收入改善和利润修复共同决定经济复苏质量，单看营收或单看利润都容易误判周期位置。",
+		CoreConclusion: "收入端反映需求是否扩张，利润端反映企业是否真正获得经营改善；二者同步修复时，复苏质量更可靠。",
 		CoreLogic: []LogicBlock{
 			{
-				Title:   "社融增速的领先性",
-				Content: "社融增速见底通常领先 PMI 见底 3-6 个月，领先市场底部 6-12 个月。因为信用扩张需要时间传导到实体经济。",
+				Title:   "收入端代表需求扩张",
+				Content: "企业收入增长通常来自销量、价格或订单改善，说明需求端出现修复。如果收入没有恢复，仅靠成本压缩带来的利润改善难以持续。",
 			},
 			{
-				Title:   "传导链",
-				Content: "社融增速回升 → 银行放贷意愿增强 → 企业融资环境改善 → 投资和消费回升 → 经济企稳 → 市场见底。",
+				Title:   "利润端代表经营质量",
+				Content: "利润改善说明企业在收入、成本和费用之间获得更好的经营结果。只有收入与利润同时改善，才更能说明复苏具备质量。",
 			},
 		},
 		ReusableUnderstanding: []string{
-			"社融增速是流动性拐点的领先指标，不是同步指标",
-			"社融增速见底不等于市场立即见底，通常有 3-6 个月时滞",
-			"关注社融结构（居民 vs 企业，短期 vs 长期）比总量更重要",
+			"收入改善看需求，利润修复看经营质量",
+			"收入与利润背离时，要警惕复苏质量不足",
+			"宏观复苏判断需要同时观察量、价、利润率和现金流",
 		},
-		NoRuleReason: "社融增速与市场的对应关系受多重因素影响（政策、外部环境、市场情绪），不适合固化为单一规则。",
+		NoRuleReason: "本文属于宏观理解型材料，用于理解复苏质量，不具备明确触发条件和执行动作，不生成候选规则。",
 		ApplicableScenarios: []string{
-			"判断流动性拐点",
-			"预判市场底部区域",
-			"理解信用扩张对估值的影响",
+			"判断经济复苏是否具备质量",
+			"分析企业盈利周期",
+			"理解收入增长和利润修复的差异",
 		},
 		RiskBoundaries: []string{
-			"社融增速回升但结构恶化（票据冲量、短期贷款占比高）",
-			"政策收紧预期（监管趋严、去杠杆）",
-			"外部冲击（美联储加息、地缘政治）",
+			"单个行业的收入利润变化不能直接代表宏观整体",
+			"利润改善可能来自一次性因素或成本压缩",
+			"收入和利润数据存在滞后，需要结合现金流和订单验证",
 		},
 	}
 }

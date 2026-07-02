@@ -23,7 +23,9 @@ func RenderKnowledgeCard(cfg *config.Config, ids *model.DocumentIDs, result *mod
 	sb.WriteString(fmt.Sprintf("原始材料：%s\n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), ids.RawID)))
 	sb.WriteString(fmt.Sprintf("来源：%s\n", result.Source))
 	sb.WriteString(fmt.Sprintf("主题标签：%s\n", formatTags(result.Tags)))
-	sb.WriteString(fmt.Sprintf("整理时间：%s\n\n", now.Format("2006-01-02")))
+	sb.WriteString(fmt.Sprintf("整理时间：%s\n", now.Format("2006-01-02")))
+	sb.WriteString(RenderSourceMetaLines(result.SourceMeta))
+	sb.WriteString("\n")
 
 	// 关联候选规则（使用 WikiLink）
 	sb.WriteString("关联候选规则：\n\n")

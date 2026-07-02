@@ -46,6 +46,7 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 	sb.WriteString("验证状态：待验证  \n")
 	sb.WriteString(fmt.Sprintf("规则验证卡：%s  \n", GetValidationCardLink(cfg, crID, crID)))
 	sb.WriteString("是否可转正式：否  \n")
+	sb.WriteString(RenderSourceMetaLines(result.SourceMeta))
 
 	// 领域信息（显示原始和映射）
 	mappedDomain := idgen.MapCRDomain(rule.DomainCode)
