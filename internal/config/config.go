@@ -23,8 +23,10 @@ type Files struct {
 	CandidateRule           string `yaml:"candidate_rule"`
 	ValidationCardTemplate  string `yaml:"validation_card_template"`
 	ValidationCardDir       string `yaml:"validation_card_dir"`
-	MacroKnowledge          string `yaml:"macro_knowledge"`     // 宏观理解卡库
-	MarketObservation       string `yaml:"market_observation"` // 市场观察卡库
+	MacroKnowledgeDir    string `yaml:"macro_knowledge_dir"`    // 宏观理解卡目录（单文件模式）
+	MacroKnowledgeIndex  string `yaml:"macro_knowledge_index"`  // 宏观理解卡索引文件
+	MarketObservationDir string `yaml:"market_observation_dir"` // 市场观察卡目录（单文件模式）
+	MarketObservationIndex string `yaml:"market_observation_index"` // 市场观察卡索引文件
 }
 
 // AI 配置

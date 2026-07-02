@@ -7,8 +7,10 @@ files:
   market_case: '日常随笔/股市学习/宽基指数仓位管理系统/03-规则/规则回溯验证/历史案例库/AI提取案例素材库.md'
   validation_card_template: '日常随笔/股市学习/宽基指数仓位管理系统/99-模板/规则验证卡模板.md'
   validation_card_dir: '日常随笔/股市学习/宽基指数仓位管理系统/03-规则/规则回溯验证/规则验证卡'
-  macro_knowledge: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md'
-  market_observation: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡库.md'
+  macro_knowledge_dir: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡'
+  macro_knowledge_index: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡/宏观理解卡索引.md'
+  market_observation_dir: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡'
+  market_observation_index: '日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡/市场观察卡索引.md'
 
 ai:
   provider: 'custom'

@@ -9,6 +9,75 @@ import (
 	"investment-kb/internal/model"
 )
 
+// ValidateRawConsistency 校验 RAW 标题与原文内容的一致性
+// 如果标题关键词在原文中完全不出现，返回警告信息
+func ValidateRawConsistency(result *model.ExtractionResult, rawText string) []string {
+	var warnings []string
+	
+	title := result.Title
+	
+	// 简化校验：检查标题中的连续子串（4-6个字符）是否出现在原文中
+	// 对于中文，提取滑动窗口子串
+	if len(title) >= 4 {
+		found := false
+		// 提取标题中的 4-6 字符子串（滑动窗口）
+		for i := 0; i <= len(title)-4; i++ {
+			substr := title[i:i+4]
+			// 跳过纯标点或数字
+			if isMeaningful(substr) && strings.Contains(rawText, substr) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			warnings = append(warnings, fmt.Sprintf("⚠️  标题关键词与原文内容可能存在错配（标题：%s）", title))
+			warnings = append(warnings, "   建议检查输入文件是否与内容匹配（mock 模式下可能出现此警告）")
+		}
+	}
+	
+	return warnings
+}
+
+// isMeaningful 检查字符串是否包含有意义的内容（非纯标点/数字）
+func isMeaningful(s string) bool {
+	for _, r := range s {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || (r >= 0x4e00 && r <= 0x9fff) {
+			return true
+		}
+	}
+	return false
+}
+
+// extractTitleKeywords 从标题中提取关键词
+func extractTitleKeywords(title string) []string {
+	// 按常见分隔符分割
+	separators := []string{"｜", "|", "与", "和", "对", "的", "如何", "为什么", "怎么"}
+	processed := title
+	for _, sep := range separators {
+		processed = strings.ReplaceAll(processed, sep, " ")
+	}
+	
+	words := strings.Fields(processed)
+	var keywords []string
+	for _, word := range words {
+		word = strings.TrimSpace(word)
+		if len(word) >= 2 {
+			keywords = append(keywords, word)
+		}
+	}
+	return keywords
+}
+
+// truncateString 截断字符串
+func truncateString(s string, maxLen int) string {
+	if len(s) <= maxLen {
+		return s
+	}
+	return s[:maxLen] + "..."
+}
+
+
+
 // RenderRawMaterial 生成原始材料 RAW Markdown
 func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rawText string, now time.Time) string {
 	var sb strings.Builder
@@ -26,6 +95,10 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	sb.WriteString(fmt.Sprintf("生成时间：%s  \n", now.Format("2006-01-02")))
 	if result.RawHash != "" {
 		sb.WriteString(fmt.Sprintf("原文哈希：%s  \n", result.RawHash))
+	}
+	// source_file 用于追溯原始输入文件，防止内容错配
+	if ids.SourceFile != "" {
+		sb.WriteString(fmt.Sprintf("来源文件：%s  \n", ids.SourceFile))
 	}
 	sb.WriteString("\n")
 
@@ -51,9 +124,9 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 		}
 		sb.WriteString("\n")
 	case "macro_knowledge":
-		// 宏观理解型材料：链接到 KNOW 卡，明确标注不生成 QA/CR
+		// 宏观理解型材料：链接到 KNOW 卡（单文件模式，直接 WikiLink）
 		if ids.KNOWID != "" {
-			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", ObsidianHeadingLink(GetMacroKnowledgePath(cfg), JoinHeading(ids.KNOWID, result.Title), JoinHeading(ids.KNOWID, result.Title))))
+			sb.WriteString(fmt.Sprintf("对应宏观理解卡：[[%s｜%s]]\n\n", ids.KNOWID, result.Title))
 		}
 		sb.WriteString("对应知识卡片：不生成\n")
 		sb.WriteString("对应候选规则：不生成\n")
@@ -62,9 +135,9 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 			sb.WriteString(fmt.Sprintf("不生成规则原因：%s\n\n", result.NoRuleReason))
 		}
 	case "market_observation":
-		// 市场观察型材料：链接到 OBS 卡，明确标注不生成 QA/CR
+		// 市场观察型材料：链接到 OBS 卡（单文件模式，直接 WikiLink）
 		if ids.OBSID != "" {
-			sb.WriteString(fmt.Sprintf("对应市场观察卡：%s\n\n", ObsidianHeadingLink(GetMarketObservationPath(cfg), JoinHeading(ids.OBSID, result.Title), JoinHeading(ids.OBSID, result.Title))))
+			sb.WriteString(fmt.Sprintf("对应市场观察卡：[[%s｜%s]]\n\n", ids.OBSID, result.Title))
 		}
 		sb.WriteString("对应知识卡片：不生成\n")
 		sb.WriteString("对应候选规则：不生成\n")

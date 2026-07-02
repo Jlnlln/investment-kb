@@ -21,6 +21,7 @@ type ExtractionResult struct {
 	GenerateKnowledgeCard  bool            `json:"generate_knowledge_card"`  // 新增：是否生成 KNOW 卡
 	GenerateObservationCard bool           `json:"generate_observation_card"` // 新增：是否生成 OBS 卡
 	NoRuleReason           string          `json:"no_rule_reason"`          // 新增：不生成规则的原因
+	ReusableUnderstanding  []string        `json:"reusable_understanding"`  // 可复用理解（macro_knowledge 用）
 	DomainCode             string          `json:"domain_code"`
 	TopicCode              string          `json:"topic_code"`
 	Tags                   []string        `json:"tags"`

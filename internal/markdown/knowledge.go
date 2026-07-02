@@ -8,24 +8,29 @@ import (
 	"time"
 )
 
-// RenderKnowCard 渲染宏观理解卡
+// RenderKnowCard 渲染宏观理解卡（单文件模式）
+// 每张 KNOW 卡是独立的 .md 文件，拥有完整 frontmatter
 func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, now time.Time) string {
 	var sb strings.Builder
 
-	// YAML frontmatter
+	// 解析 layer 和 topic
+	var layer, topic string
+	if ids.KNOWID != "" {
+		parts := strings.SplitN(ids.KNOWID, "-", 4)
+		if len(parts) >= 3 {
+			layer = parts[1]
+			topic = parts[2]
+		}
+	}
+
+	// YAML frontmatter（每张 KNOW 卡独立拥有，Obsidian 可识别）
 	fmt.Fprintf(&sb, "---\n")
 	fmt.Fprintf(&sb, "uid: %s\n", ids.KNOWID)
 	fmt.Fprintf(&sb, "title: %s\n", result.Title)
 	fmt.Fprintf(&sb, "source: %s\n", result.Source)
 	fmt.Fprintf(&sb, "material_type: macro_knowledge\n")
-	// layer 和 topic 字段（从编号解析）
-	if ids.KNOWID != "" {
-		parts := strings.SplitN(ids.KNOWID, "-", 4)
-		if len(parts) >= 3 {
-			fmt.Fprintf(&sb, "layer: %s\n", parts[1])
-			fmt.Fprintf(&sb, "topic: %s\n", parts[2])
-		}
-	}
+	fmt.Fprintf(&sb, "layer: %s\n", layer)
+	fmt.Fprintf(&sb, "topic: %s\n", topic)
 	// tags 用 YAML 列表格式，Obsidian 才能识别
 	fmt.Fprintf(&sb, "tags:\n")
 	for _, tag := range result.Tags {
@@ -37,10 +42,10 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 	// 标题（用｜分隔，与 RAW/CR 格式一致）
 	fmt.Fprintf(&sb, "# %s｜%s\n\n", ids.KNOWID, result.Title)
 
-	// 原始材料链接（使用完整 Obsidian 锚点链接）
+	// 原始材料链接（RAW 在聚合文件中，需要锚点链接）
 	rawPath := GetRawMaterialPath(cfg)
 	rawHeading := JoinHeading(ids.RawID, result.Title)
-	fmt.Fprintf(&sb, "原始材料：%s\n\n", ObsidianHeadingLink(rawPath, rawHeading, ids.RawID))
+	fmt.Fprintf(&sb, "原始材料：%s\n\n", ObsidianHeadingLink(rawPath, rawHeading, ids.RawID+"｜"+result.Title))
 
 	// 核心结论
 	fmt.Fprintf(&sb, "## 核心结论\n\n")
@@ -53,8 +58,15 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 		fmt.Fprintf(&sb, "%s\n\n", logic.Content)
 	}
 
-	// 可复用理解（如果有 summary）
-	if result.Summary != "" {
+	// 可复用理解（优先渲染 ReusableUnderstanding 列表，如果没有则渲染 Summary）
+	if len(result.ReusableUnderstanding) > 0 {
+		fmt.Fprintf(&sb, "## 可复用理解\n\n")
+		for _, understanding := range result.ReusableUnderstanding {
+			fmt.Fprintf(&sb, "- %s\n", understanding)
+		}
+		fmt.Fprintf(&sb, "\n")
+	} else if result.Summary != "" {
+		// 兼容旧版本：如果没有 ReusableUnderstanding，渲染 Summary
 		fmt.Fprintf(&sb, "## 可复用理解\n\n")
 		fmt.Fprintf(&sb, "%s\n\n", result.Summary)
 	}

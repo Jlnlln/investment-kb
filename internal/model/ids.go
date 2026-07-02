@@ -8,4 +8,5 @@ type DocumentIDs struct {
 	OBSID        string   // 市场观察卡编号，如 OBS-L2-POLICY-20260701-001
 	CaseID       string   // 市场案例编号，如 CASE-INDEX-DD-20260609-001（可能为空）
 	CandidateIDs []string // 候选规则编号列表
+	SourceFile   string   // 原始输入文件路径（用于追溯和一致性校验）
 }

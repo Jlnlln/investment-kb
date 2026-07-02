@@ -28,6 +28,8 @@ type ExtractOptions struct {
 	Source         string
 	DryRun         bool
 	Mock           bool
+	MockIndex      int  // Mock 数据变体编号（默认 1）
+	ForceType      string // 强制指定材料类型，跳过 AI 判断
 	AllowDuplicate bool
 	ConfigPath     string
 }
@@ -122,8 +124,19 @@ func Extract(opts *ExtractOptions) error {
 	// 3. 获取 ExtractionResult
 	var result *model.ExtractionResult
 	if opts.Mock {
-		result = model.MockExtractionResult()
-		fmt.Printf("🧪 使用 Mock 数据\n\n")
+		// 根据 ForceType 和 MockIndex 选择对应的 Mock 数据
+		if opts.ForceType == "macro_knowledge" {
+			if opts.MockIndex == 2 {
+				result = model.MockMacroKnowledgeResult2()
+				fmt.Printf("🧪 使用 Mock 数据（macro_knowledge variant 2）\n\n")
+			} else {
+				result = model.MockMacroKnowledgeResult()
+				fmt.Printf("🧪 使用 Mock 数据（macro_knowledge）\n\n")
+			}
+		} else {
+			result = model.MockExtractionResult()
+			fmt.Printf("🧪 使用 Mock 数据（rule_candidate）\n\n")
+		}
 	} else {
 		// 调用 AI 获取结果
 		fmt.Printf("🤖 正在调用 AI...\n")
@@ -132,6 +145,39 @@ func Extract(opts *ExtractOptions) error {
 			return fmt.Errorf("AI 调用失败: %w", err)
 		}
 		fmt.Printf("✅ AI 返回结果\n\n")
+	}
+
+	// 3.1 如果指定了 ForceType，覆盖 material_type（跳过 AI 判断）
+	if opts.ForceType != "" {
+		result.MaterialType = model.MaterialType(opts.ForceType)
+		// 同步更新 Generate* 标志，确保提取函数行为正确
+		switch model.MaterialType(opts.ForceType) {
+		case model.MaterialTypeRuleCandidate:
+			result.GenerateQA = true
+			result.GenerateCandidateRules = true
+			result.GenerateValidationCards = true
+			result.GenerateKnowledgeCard = false
+			result.GenerateObservationCard = false
+		case model.MaterialTypeMacroKnowledge:
+			result.GenerateQA = false
+			result.GenerateCandidateRules = false
+			result.GenerateValidationCards = false
+			result.GenerateKnowledgeCard = true
+			result.GenerateObservationCard = false
+		case model.MaterialTypeMarketObservation:
+			result.GenerateQA = false
+			result.GenerateCandidateRules = false
+			result.GenerateValidationCards = false
+			result.GenerateKnowledgeCard = false
+			result.GenerateObservationCard = true
+		case model.MaterialTypeArchiveOnly:
+			result.GenerateQA = false
+			result.GenerateCandidateRules = false
+			result.GenerateValidationCards = false
+			result.GenerateKnowledgeCard = false
+			result.GenerateObservationCard = false
+		}
+		fmt.Printf("⚠️  强制指定材料类型：%s（跳过 AI 判断）\n\n", opts.ForceType)
 	}
 
 	// 4. 计算原文 sha256 hash（用于去重）
@@ -245,9 +291,25 @@ func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *mode
 		return fmt.Errorf("生成编号失败: %w", err)
 	}
 
+	// 设置来源文件（用于追溯和一致性校验）
+	ids.SourceFile = opts.InputPath
+
 	// 6. 渲染 Markdown
 	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
 	qaMD := markdown.RenderKnowledgeCard(cfg, ids, result, now)
+
+	// 6.1 一致性校验：检查 RAW 标题与原文内容是否匹配
+	consistencyWarnings := markdown.ValidateRawConsistency(result, string(rawText))
+	if len(consistencyWarnings) > 0 {
+		fmt.Printf("\n⚠️  一致性校验警告：\n")
+		for _, w := range consistencyWarnings {
+			fmt.Printf("   %s\n", w)
+		}
+		if !opts.DryRun {
+			fmt.Printf("\n❌ 一致性校验失败，停止写入。请检查输入文件是否与内容匹配。\n")
+			return fmt.Errorf("一致性校验失败：RAW 标题与原文内容可能存在错配")
+		}
+	}
 	// 准备每条 CR 的相似规则数据
 	similarData := prepareSimilarData(similarResults, len(result.CandidateRules))
 	crMD := markdown.RenderCandidateRules(cfg, ids, result, result.CandidateRules, similarData)
@@ -344,9 +406,25 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 		return fmt.Errorf("生成编号失败: %w", err)
 	}
 
+	// 设置来源文件（用于追溯和一致性校验）
+	ids.SourceFile = opts.InputPath
+
 	// 渲染 Markdown
 	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
 	knowMD := markdown.RenderKnowCard(cfg, ids, result, now)
+
+	// 一致性校验：检查 RAW 标题与原文内容是否匹配
+	consistencyWarnings := markdown.ValidateRawConsistency(result, string(rawText))
+	if len(consistencyWarnings) > 0 {
+		fmt.Printf("\n⚠️  一致性校验警告：\n")
+		for _, w := range consistencyWarnings {
+			fmt.Printf("   %s\n", w)
+		}
+		if !opts.DryRun {
+			fmt.Printf("\n❌ 一致性校验失败，停止写入。请检查输入文件是否与内容匹配。\n")
+			return fmt.Errorf("一致性校验失败：RAW 标题与原文内容可能存在错配")
+		}
+	}
 
 	// Dry-run 模式
 	if opts.DryRun {
@@ -363,15 +441,43 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
-	// 写入 KNOW 卡
-	knowPath := cfg.Files.MacroKnowledge
-	if knowPath == "" {
-		knowPath = "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md"
+	// 写入 KNOW 卡（单文件模式：每张 KNOW 是独立的 .md 文件）
+	knowRelativePath := markdown.GetKnowRelativePath(cfg, ids.KNOWID, result.Title)
+	knowFullPath := filepath.Join(cfg.ObsidianVaultPath, knowRelativePath)
+	if err := os.MkdirAll(filepath.Dir(knowFullPath), 0755); err != nil {
+		return fmt.Errorf("创建 KNOW 卡目录失败: %w", err)
 	}
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, knowPath, knowMD); err != nil {
+	if err := os.WriteFile(knowFullPath, []byte(knowMD), 0644); err != nil {
 		return fmt.Errorf("写入宏观理解卡失败: %w", err)
 	}
-	fmt.Printf("   ✅ %s\n", ids.KNOWID)
+	fmt.Printf("   ✅ %s（独立文件：%s）\n", ids.KNOWID, knowRelativePath)
+
+	// KNOW 卡相似去重检查（轻量级）
+	var layer, topic string
+	if ids.KNOWID != "" {
+		parts := strings.SplitN(ids.KNOWID, "-", 4)
+		if len(parts) >= 3 {
+			layer = parts[1]
+			topic = parts[2]
+		}
+	}
+	similarWarnings := markdown.CheckSimilarKnowCards(cfg.ObsidianVaultPath, cfg.Files.MacroKnowledgeDir, ids.KNOWID, result.Title, layer, topic)
+	if len(similarWarnings) > 0 {
+		fmt.Printf("   ⚠️  知似去重提示：\n")
+		for _, w := range similarWarnings {
+			fmt.Printf("      %s\n", w)
+		}
+		// 在 KNOW 卡文件中追加相似理解卡提示（不自动删除，由人工决定）
+		similarSection := renderSimilarKnowSection(similarWarnings)
+		if err := appendSimilarKnowSection(knowFullPath, similarSection); err != nil {
+			fmt.Printf("      ⚠️  写入相似提示失败: %v\n", err)
+		}
+	}
+
+	// 更新宏观理解卡索引
+	if err := markdown.UpdateKnowIndex(cfg); err != nil {
+		fmt.Printf("   ⚠️  更新索引失败: %v\n", err)
+	}
 
 	// 保存状态
 	if err := idgen.SaveState(); err != nil {
@@ -401,10 +507,13 @@ func extractMarketObservation(opts *ExtractOptions, cfg *config.Config, result *
 	// 渲染 Markdown
 	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
 
+	// OBS 卡渲染（待完整实现，暂时只写 RAW）
+	_ = ids.OBSID // 预留 OBS 卡 ID
+
 	// Dry-run 模式
 	if opts.DryRun {
 		fmt.Printf("=== RAW ===\n\n%s\n", rawMD)
-		fmt.Printf("⚠️  OBS 卡生成功能待实现\n")
+		fmt.Printf("⚠️  OBS 卡生成功能待完整实现\n")
 		return nil
 	}
 
@@ -416,7 +525,7 @@ func extractMarketObservation(opts *ExtractOptions, cfg *config.Config, result *
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
-	fmt.Printf("   ⚠️  OBS 卡生成功能待实现（需要更新 config.yaml）\n")
+	fmt.Printf("   ⚠️  OBS 卡生成功能待完整实现（预留 ID：%s）\n", ids.OBSID)
 
 	// 保存状态
 	if err := idgen.SaveState(); err != nil {
@@ -888,4 +997,33 @@ func cleanOrphanValidationCards(cfg *config.Config) {
 			}
 		}
 	}
+}
+
+// renderSimilarKnowSection 渲染相似理解卡提示区段
+func renderSimilarKnowSection(warnings []string) string {
+	var sb strings.Builder
+	sb.WriteString("\n## 相似理解卡\n\n")
+	for _, w := range warnings {
+		sb.WriteString(fmt.Sprintf("- %s\n", w))
+	}
+	sb.WriteString("\n处理建议：\n")
+	sb.WriteString("- [ ] 独立保留\n")
+	sb.WriteString("- [ ] 合并到已有 KNOW\n")
+	sb.WriteString("- [ ] 作为已有 KNOW 的补充材料\n")
+	sb.WriteString("- [ ] 废弃\n")
+	sb.WriteString("\n")
+	return sb.String()
+}
+
+// appendSimilarKnowSection 将相似理解卡提示追加到 KNOW 文件末尾
+func appendSimilarKnowSection(filePath string, section string) error {
+	file, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("打开 KNOW 文件失败: %w", err)
+	}
+	defer file.Close()
+	if _, err := file.WriteString(section); err != nil {
+		return fmt.Errorf("写入相似提示失败: %w", err)
+	}
+	return nil
 }

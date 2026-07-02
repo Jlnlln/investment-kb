@@ -114,6 +114,7 @@ func KnowTopicToLayerTopic(domainCode, topicCode string) (layer, topic string) {
 			"ECON":   {"L2", "ECON"},    // 经济周期
 			"GROW":   {"L2", "GROW"},    // 增长/复苏
 			"DEBT":   {"L2", "DEBT"},    // 债务/信用
+			"CREDIT": {"L3", "CREDIT"},  // 社融/信用扩张（L3 政策与流动性）
 		},
 	}
 

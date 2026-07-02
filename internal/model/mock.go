@@ -2,6 +2,7 @@ package model
 
 // MockExtractionResult 返回一个模拟的 ExtractionResult，用于测试和开发
 // 基于技术文档第 16 节的 JSON 示例
+// 默认 material_type = rule_candidate
 func MockExtractionResult() *ExtractionResult {
 	return &ExtractionResult{
 		Title:      "安全边际与错失买入机会如何平衡",
@@ -143,5 +144,111 @@ func MockExtractionResult() *ExtractionResult {
 			},
 		},
 		MyUnderstanding: "这段问答最重要的启发是，投资决策不能只看市场点位，还要看账户状态。完整问题不是当前点位能不能买，而是在我的账户状态下当前点位能买多少。",
+	}
+}
+
+// MockMacroKnowledgeResult 返回一个模拟的 macro_knowledge 类型 ExtractionResult，用于测试 KNOW 卡单文件模式
+func MockMacroKnowledgeResult() *ExtractionResult {
+	return &ExtractionResult{
+		Title:            "消费与输入性通胀对利率走向的制约",
+		Source:           "陈老师问答",
+		DomainCode:       "MACRO",
+		TopicCode:        "RATE",
+		MaterialType:     MaterialTypeMacroKnowledge,
+		GenerateQA:       false,
+		GenerateCandidateRules: false,
+		GenerateValidationCards: false,
+		GenerateKnowledgeCard: true,
+		GenerateObservationCard: false,
+		Tags: []string{
+			"投资/宏观理解",
+			"投资/L3政策流动性",
+			"投资/利率",
+			"投资/货币政策",
+			"投资/输入性通胀",
+		},
+		Summary: "消费复苏偏弱叠加输入性通胀压力，使得央行降息空间受限，利率走向更多呈现震荡而非趋势性下行。",
+		CoreConclusion: "消费复苏偏弱 + 输入性通胀制约 = 央行降息空间有限，利率易上难下。",
+		CoreLogic: []LogicBlock{
+			{
+				Title:   "消费复苏偏弱的传导链",
+				Content: "居民收入预期未明显改善 → 消费意愿偏低 → 内需偏弱 → 央行有降息促消费的动力，但效果有限。",
+			},
+			{
+				Title:   "输入性通胀的制约",
+				Content: "国际大宗商品（原油、粮食）价格上涨 → 输入性通胀压力上升 → 央行若降息会加剧汇率贬值和通胀预期 → 降息受限。",
+			},
+			{
+				Title:   "汇率压力的外部约束",
+				Content: "美联储维持高利率 → 中美利差倒挂 → 人民币贬值压力 → 国内降息会扩大利差倒挂 → 进一步制约降息空间。",
+			},
+		},
+		ReusableUnderstanding: []string{
+			"利率不是单纯由国内经济决定，外部约束（美联储、大宗商品）同样重要",
+			"消费弱 ≠ 一定降息，还要看通胀和汇率",
+			"输入性通胀是容易被忽视的利率上行风险",
+		},
+		NoRuleReason: "本文属于宏观理解型材料，讲的是利率走向的制约因素，不是可执行规则。利率判断需要结合多个指标综合判断，不适合固化为单一规则。",
+		ApplicableScenarios: []string{
+			"判断利率大方向（趋势下行 vs 震荡 vs 上行）",
+			"理解央行降息犹豫的原因",
+			"分析美联储政策对国内的影响",
+		},
+		RiskBoundaries: []string{
+			"美联储意外大幅降息（外部约束解除）",
+			"国内通胀超预期下行（输入性压力缓解）",
+			"消费复苏超预期（内需拉动，降息必要性下降）",
+		},
+	}
+}
+
+// MockMacroKnowledgeResult2 返回第二个 macro_knowledge Mock（不同 topic，用于测试多篇 KNOW 索引更新）
+func MockMacroKnowledgeResult2() *ExtractionResult {
+	return &ExtractionResult{
+		Title:            "社融增速与流动性拐点的关系",
+		Source:           "陈老师问答",
+		DomainCode:       "MACRO",
+		TopicCode:        "CREDIT",
+		MaterialType:     MaterialTypeMacroKnowledge,
+		GenerateQA:       false,
+		GenerateCandidateRules: false,
+		GenerateValidationCards: false,
+		GenerateKnowledgeCard: true,
+		GenerateObservationCard: false,
+		Tags: []string{
+			"投资/宏观理解",
+			"投资/L3政策流动性",
+			"投资/社融",
+			"投资/流动性",
+			"投资/信用扩张",
+		},
+		Summary: "社融增速见底是流动性拐点的重要领先指标，通常领先市场底部 3-6 个月。",
+		CoreConclusion: "社融增速企稳回升 → 流动性改善 → 估值修复 → 市场见底。",
+		CoreLogic: []LogicBlock{
+			{
+				Title:   "社融增速的领先性",
+				Content: "社融增速见底通常领先 PMI 见底 3-6 个月，领先市场底部 6-12 个月。因为信用扩张需要时间传导到实体经济。",
+			},
+			{
+				Title:   "传导链",
+				Content: "社融增速回升 → 银行放贷意愿增强 → 企业融资环境改善 → 投资和消费回升 → 经济企稳 → 市场见底。",
+			},
+		},
+		ReusableUnderstanding: []string{
+			"社融增速是流动性拐点的领先指标，不是同步指标",
+			"社融增速见底不等于市场立即见底，通常有 3-6 个月时滞",
+			"关注社融结构（居民 vs 企业，短期 vs 长期）比总量更重要",
+		},
+		NoRuleReason: "社融增速与市场的对应关系受多重因素影响（政策、外部环境、市场情绪），不适合固化为单一规则。",
+		ApplicableScenarios: []string{
+			"判断流动性拐点",
+			"预判市场底部区域",
+			"理解信用扩张对估值的影响",
+		},
+		RiskBoundaries: []string{
+			"社融增速回升但结构恶化（票据冲量、短期贷款占比高）",
+			"政策收紧预期（监管趋严、去杠杆）",
+			"外部冲击（美联储加息、地缘政治）",
+		},
 	}
 }

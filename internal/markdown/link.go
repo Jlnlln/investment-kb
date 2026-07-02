@@ -51,18 +51,45 @@ func GetCandidateRulePath(cfg *config.Config) string {
 	return cfg.Files.CandidateRule
 }
 
-func GetMacroKnowledgePath(cfg *config.Config) string {
+func GetMacroKnowledgeDir(cfg *config.Config) string {
 	if cfg == nil {
-		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡库.md"
+		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡"
 	}
-	return cfg.Files.MacroKnowledge
+	return cfg.Files.MacroKnowledgeDir
 }
 
-func GetMarketObservationPath(cfg *config.Config) string {
+func GetMacroKnowledgeIndexPath(cfg *config.Config) string {
 	if cfg == nil {
-		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡库.md"
+		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/宏观理解卡/宏观理解卡索引.md"
 	}
-	return cfg.Files.MarketObservation
+	return cfg.Files.MacroKnowledgeIndex
+}
+
+func GetMarketObservationDir(cfg *config.Config) string {
+	if cfg == nil {
+		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡"
+	}
+	return cfg.Files.MarketObservationDir
+}
+
+func GetMarketObservationIndexPath(cfg *config.Config) string {
+	if cfg == nil {
+		return "日常随笔/股市学习/宽基指数仓位管理系统/02-观点/市场观察卡/市场观察卡索引.md"
+	}
+	return cfg.Files.MarketObservationIndex
+}
+
+// GetKnowRelativePath 返回单个 KNOW 文件的相对路径（不含 vault 前缀）
+// 格式：宏观理解卡目录/KNOW-ID｜title.md
+func GetKnowRelativePath(cfg *config.Config, knowID, title string) string {
+	dir := GetMacroKnowledgeDir(cfg)
+	return fmt.Sprintf("%s/%s｜%s.md", dir, knowID, title)
+}
+
+// GetObsRelativePath 返回单个 OBS 文件的相对路径（不含 vault 前缀）
+func GetObsRelativePath(cfg *config.Config, obsID, title string) string {
+	dir := GetMarketObservationDir(cfg)
+	return fmt.Sprintf("%s/%s｜%s.md", dir, obsID, title)
 }
 
 func JoinHeading(id, title string) string {
