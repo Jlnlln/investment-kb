@@ -235,14 +235,14 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 			if i < len(result.CandidateRules) {
 				rule := result.CandidateRules[i]
 				heading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
-				sb.WriteString(fmt.Sprintf("- %s\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), heading, heading)))
+				sb.WriteString(fmt.Sprintf("- %s\n", CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, heading)))
 			}
 		}
 		sb.WriteString("\n")
 	case "macro_knowledge":
 		// 宏观理解型材料：链接到 KNOW 卡（单文件模式，直接 WikiLink）
 		if ids.KNOWID != "" {
-			sb.WriteString(fmt.Sprintf("对应宏观理解卡：[[%s｜%s]]\n\n", ids.KNOWID, result.Title))
+			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", KnowLink(cfg, ids.KNOWID, result.Title)))
 		}
 		sb.WriteString("对应知识卡片：不生成\n")
 		sb.WriteString("对应候选规则：不生成\n")

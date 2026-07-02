@@ -29,7 +29,7 @@ type ExtractOptions struct {
 	Source         string
 	DryRun         bool
 	Mock           bool
-	MockIndex      int  // Mock 数据变体编号（默认 1）
+	MockIndex      int    // Mock 数据变体编号（默认 1）
 	ForceType      string // 强制指定材料类型，跳过 AI 判断
 	AllowDuplicate bool
 	ConfigPath     string
@@ -285,10 +285,9 @@ func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *mode
 
 	// 4.8 跨文章相似规则检查
 	fmt.Printf("🔍 跨文章相似规则检查...\n")
-	crLibraryPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
-	existingCRs, err := dedup.ParseExistingCRs(crLibraryPath)
+	existingCRs, err := loadExistingCandidateRules(cfg)
 	if err != nil {
-		fmt.Printf("⚠️  读取候选规则库失败，跳过相似检查: %v\n", err)
+		fmt.Printf("⚠️  读取候选规则失败，跳过相似检查: %v\n", err)
 		existingCRs = nil
 	}
 	var similarResults []map[int][]dedup.SimilarRule // 每条新 CR 对应的相似规则
@@ -347,18 +346,27 @@ func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *mode
 	// 8. 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
 		return fmt.Errorf("写入原始材料失败: %w", err)
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.QA, qaMD); err != nil {
+	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.QA, qaMD, ids.QAID); err != nil {
 		return fmt.Errorf("写入知识卡片失败: %w", err)
 	}
 	fmt.Printf("   ✅ %s\n", ids.QAID)
 
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.CandidateRule, crMD); err != nil {
-		return fmt.Errorf("写入候选规则失败: %w", err)
+	if markdown.UseStandaloneCandidateRules(cfg) {
+		if err := writeCandidateRuleFiles(cfg, ids, result, similarData); err != nil {
+			return err
+		}
+		if err := markdown.UpdateCandidateRuleIndex(cfg); err != nil {
+			return fmt.Errorf("更新候选规则索引失败: %w", err)
+		}
+	} else {
+		if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.CandidateRule, crMD, firstID(ids.CandidateIDs)); err != nil {
+			return fmt.Errorf("写入候选规则失败: %w", err)
+		}
 	}
 
 	// 生成规则验证卡草稿
@@ -387,7 +395,7 @@ func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *mode
 	}
 
 	if caseMD != "" {
-		if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.MarketCase, caseMD); err != nil {
+		if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.MarketCase, caseMD, ids.CaseID); err != nil {
 			return fmt.Errorf("写入市场案例失败: %w", err)
 		}
 		fmt.Printf("   ✅ %s\n", ids.CaseID)
@@ -428,7 +436,6 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 	rawMD := markdown.RenderRawMaterial(cfg, ids, result, string(rawText), now)
 	knowMD := markdown.RenderKnowCard(cfg, ids, result, now)
 
-
 	// Dry-run 模式
 	if opts.DryRun {
 		fmt.Printf("=== RAW ===\n\n%s\n", rawMD)
@@ -439,7 +446,7 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 	// 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
 		return fmt.Errorf("写入原始材料失败: %w", err)
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
@@ -526,7 +533,7 @@ func extractMarketObservation(opts *ExtractOptions, cfg *config.Config, result *
 	// 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
 		return fmt.Errorf("写入原始材料失败: %w", err)
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
@@ -570,7 +577,7 @@ func extractArchiveOnly(opts *ExtractOptions, cfg *config.Config, result *model.
 	// 写入 Obsidian（仅 RAW）
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if err := obsidian.AppendMarkdown(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD); err != nil {
+	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
 		return fmt.Errorf("写入原始材料失败: %w", err)
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
@@ -867,7 +874,7 @@ func checkAbsoluteClaims(result *model.ExtractionResult) error {
 }
 
 // checkAbsoluteClaimInText 检查单条文本中的绝对化收益表达
-// 对每个危险词查找所有出现位置，取前后 24 个 rune 的上下文（不含关键词本身），
+// 对每个危险词查找所有出现位置，取前后 48 个 rune 的上下文（不含关键词本身），
 // 若上下文中存在否定标记则放行，否则返回 hard error。
 func checkAbsoluteClaimInText(text string) error {
 	if text == "" {
@@ -895,17 +902,17 @@ func checkAbsoluteClaimInText(text string) error {
 			}
 
 			// 取关键词前后的上下文（不含关键词本身），按 rune 计数
-			beforeStart := i - 24
+			beforeStart := i - 48
 			if beforeStart < 0 {
 				beforeStart = 0
 			}
 			before := runes[beforeStart:i]
 
-			afterEnd := i + len(keywordRunes) + 24
+			afterEnd := i + len(keywordRunes) + 48
 			if afterEnd > len(runes) {
 				afterEnd = len(runes)
 			}
-			after := runes[i+len(keywordRunes):afterEnd]
+			after := runes[i+len(keywordRunes) : afterEnd]
 
 			// 检查上下文是否包含否定标记
 			context := string(before) + string(after)
@@ -995,29 +1002,81 @@ func prepareSimilarData(similarResults []map[int][]dedup.SimilarRule, ruleCount 
 	return data
 }
 
+func firstID(ids []string) string {
+	if len(ids) == 0 {
+		return ""
+	}
+	return ids[0]
+}
+
+func loadExistingCandidateRules(cfg *config.Config) ([]dedup.RuleFingerprint, error) {
+	if markdown.UseStandaloneCandidateRules(cfg) {
+		return dedup.ParseExistingCRDir(filepath.Join(cfg.ObsidianVaultPath, markdown.GetCandidateRuleDir(cfg)))
+	}
+	return dedup.ParseExistingCRs(filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule))
+}
+
+func writeCandidateRuleFiles(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, similarData [][]dedup.SimilarRule) error {
+	for i, crID := range ids.CandidateIDs {
+		if i >= len(result.CandidateRules) {
+			break
+		}
+		rule := result.CandidateRules[i]
+		var ruleSimilarRules []dedup.SimilarRule
+		if i < len(similarData) {
+			ruleSimilarRules = similarData[i]
+		}
+		content := markdown.RenderCandidateRuleFile(cfg, ids, result, rule, crID, ruleSimilarRules)
+		relativePath := markdown.CandidateRuleRelativePath(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
+		fullPath := filepath.Join(cfg.ObsidianVaultPath, relativePath)
+		if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+			return fmt.Errorf("创建候选规则目录失败: %w", err)
+		}
+		if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+			return fmt.Errorf("写入候选规则失败 %s: %w", crID, err)
+		}
+		fmt.Printf("   ✅ %s（独立文件：%s）\n", crID, relativePath)
+	}
+	return nil
+}
+
 // cleanOrphanValidationCards 清理孤立的验证卡（候选规则库中不存在的）
 func cleanOrphanValidationCards(cfg *config.Config) {
 	vcDir := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.ValidationCardDir)
-	crPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
-
-	// 读取候选规则库中所有 CR ID
-	crData, err := os.ReadFile(crPath)
-	if err != nil {
-		return // 候选规则库不存在，跳过
-	}
 
 	crIDs := make(map[string]bool)
-	lines := strings.Split(string(crData), "\n")
-	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		// 匹配 # CR-XXX-YYYYMMDD-XXX 格式
-		if strings.HasPrefix(line, "# CR-") {
-			// 提取 ID（标题可能是 "# CR-ACCOUNT-20260701-001｜规则名"）
-			id := strings.TrimPrefix(line, "# ")
+	if markdown.UseStandaloneCandidateRules(cfg) {
+		crDir := filepath.Join(cfg.ObsidianVaultPath, markdown.GetCandidateRuleDir(cfg))
+		entries, err := os.ReadDir(crDir)
+		if err != nil {
+			return
+		}
+		for _, entry := range entries {
+			if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || !strings.HasPrefix(entry.Name(), "CR-") {
+				continue
+			}
+			id := strings.TrimSuffix(entry.Name(), ".md")
 			if idx := strings.Index(id, "｜"); idx > 0 {
 				id = id[:idx]
 			}
 			crIDs[id] = true
+		}
+	} else {
+		crPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
+		crData, err := os.ReadFile(crPath)
+		if err != nil {
+			return
+		}
+		lines := strings.Split(string(crData), "\n")
+		for _, line := range lines {
+			line = strings.TrimSpace(line)
+			if strings.HasPrefix(line, "# CR-") {
+				id := strings.TrimPrefix(line, "# ")
+				if idx := strings.Index(id, "｜"); idx > 0 {
+					id = id[:idx]
+				}
+				crIDs[id] = true
+			}
 		}
 	}
 

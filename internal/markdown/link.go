@@ -2,7 +2,9 @@ package markdown
 
 import (
 	"fmt"
+	"path/filepath"
 	"strings"
+	"unicode/utf8"
 
 	"investment-kb/internal/config"
 )
@@ -21,6 +23,18 @@ func ObsidianHeadingLink(filePath string, heading string, alias string) string {
 	}
 
 	return fmt.Sprintf("[[%s#%s|%s]]", linkPath, heading, alias)
+}
+
+// ObsidianFileLink 生成指向独立 Markdown 文件的 Obsidian WikiLink。
+func ObsidianFileLink(filePath string, alias string) string {
+	linkPath := strings.ReplaceAll(filePath, "\\", "/")
+	linkPath = strings.TrimSuffix(linkPath, ".md")
+	linkPath = strings.TrimSuffix(linkPath, ".MD")
+	if alias == "" {
+		parts := strings.Split(linkPath, "/")
+		alias = parts[len(parts)-1]
+	}
+	return fmt.Sprintf("[[%s|%s]]", linkPath, alias)
 }
 
 func GetRawMaterialPath(cfg *config.Config) string {
@@ -49,6 +63,27 @@ func GetCandidateRulePath(cfg *config.Config) string {
 		return "日常随笔/股市学习/个人投资训练系统/04-投资规则/候选规则.md"
 	}
 	return cfg.Files.CandidateRule
+}
+
+func GetCandidateRuleDir(cfg *config.Config) string {
+	if cfg != nil && cfg.Files.CandidateRuleDir != "" {
+		return cfg.Files.CandidateRuleDir
+	}
+	if cfg != nil && cfg.Files.CandidateRule != "" {
+		return strings.TrimSuffix(cfg.Files.CandidateRule, filepath.Ext(cfg.Files.CandidateRule))
+	}
+	return "日常随笔/股市学习/宽基指数仓位管理系统/03-规则/候选规则"
+}
+
+func GetCandidateRuleIndexPath(cfg *config.Config) string {
+	if cfg != nil && cfg.Files.CandidateRuleIndex != "" {
+		return cfg.Files.CandidateRuleIndex
+	}
+	return filepath.Join(GetCandidateRuleDir(cfg), "候选规则索引.md")
+}
+
+func UseStandaloneCandidateRules(cfg *config.Config) bool {
+	return cfg != nil && cfg.Files.CandidateRuleDir != "" && cfg.Files.CandidateRuleIndex != ""
 }
 
 func GetMacroKnowledgeDir(cfg *config.Config) string {
@@ -86,6 +121,10 @@ func GetKnowRelativePath(cfg *config.Config, knowID, title string) string {
 	return fmt.Sprintf("%s/%s｜%s.md", dir, knowID, title)
 }
 
+func KnowLink(cfg *config.Config, knowID, title string) string {
+	return ObsidianFileLink(GetKnowRelativePath(cfg, knowID, title), knowID)
+}
+
 // GetObsRelativePath 返回单个 OBS 文件的相对路径（不含 vault 前缀）
 func GetObsRelativePath(cfg *config.Config, obsID, title string) string {
 	dir := GetMarketObservationDir(cfg)
@@ -99,4 +138,62 @@ func JoinHeading(id, title string) string {
 func JoinCandidateRuleHeading(crID string, domainCode, topicCode, ruleName string) string {
 	shortCode := domainCode + "-" + topicCode
 	return fmt.Sprintf("%s｜%s｜%s", crID, shortCode, ruleName)
+}
+
+func CandidateRuleFileName(crID string, domainCode, topicCode, ruleName string) string {
+	return sanitizeMarkdownFileName(JoinCandidateRuleHeading(crID, domainCode, topicCode, ruleName)) + ".md"
+}
+
+func CandidateRuleRelativePath(cfg *config.Config, crID string, domainCode, topicCode, ruleName string) string {
+	return filepath.Join(GetCandidateRuleDir(cfg), CandidateRuleFileName(crID, domainCode, topicCode, ruleName))
+}
+
+func CandidateRuleLink(cfg *config.Config, crID string, domainCode, topicCode, ruleName string, alias string) string {
+	heading := JoinCandidateRuleHeading(crID, domainCode, topicCode, ruleName)
+	if alias == "" {
+		alias = crID // 使用 CR-ID 作为别名（更简洁）
+	}
+	if UseStandaloneCandidateRules(cfg) {
+		return ObsidianFileLink(CandidateRuleRelativePath(cfg, crID, domainCode, topicCode, ruleName), alias)
+	}
+	return ObsidianHeadingLink(GetCandidateRulePath(cfg), heading, alias)
+}
+
+func SimilarRuleLink(cfg *config.Config, crID, shortCode, ruleName string) string {
+	alias := crID // 使用 CR-ID 作为别名
+	if UseStandaloneCandidateRules(cfg) {
+		parts := strings.SplitN(shortCode, "-", 2)
+		domainCode := shortCode
+		topicCode := ""
+		if len(parts) == 2 {
+			domainCode = parts[0]
+			topicCode = parts[1]
+		}
+		return ObsidianFileLink(CandidateRuleRelativePath(cfg, crID, domainCode, topicCode, ruleName), alias)
+	}
+	return ObsidianHeadingLink(GetCandidateRulePath(cfg), crID+"｜"+shortCode+"｜"+ruleName, alias)
+}
+
+func sanitizeMarkdownFileName(name string) string {
+	replacer := strings.NewReplacer(
+		"\\", "／",
+		"/", "／",
+		":", "：",
+		"*", "＊",
+		"?", "？",
+		"\"", "'",
+		"<", "＜",
+		">", "＞",
+		"|", "｜",
+	)
+	name = strings.TrimSpace(replacer.Replace(name))
+	const maxRunes = 110
+	runes := []rune(name)
+	if len(runes) > maxRunes {
+		name = string(runes[:maxRunes])
+		for !utf8.ValidString(name) {
+			name = name[:len(name)-1]
+		}
+	}
+	return name
 }

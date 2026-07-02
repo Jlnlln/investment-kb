@@ -18,10 +18,11 @@ var layerTopicOrder = map[string]int{
 
 // knowIndexEntry 索引条目
 type knowIndexEntry struct {
-	Layer string
-	Topic string
-	Title string
+	Layer  string
+	Topic  string
+	Title  string
 	KNOWID string
+	Path   string
 }
 
 // layerTopicNames 分层-主题中文映射
@@ -98,6 +99,7 @@ func ScanKnowCards(vaultPath, knowDir string) []knowIndexEntry {
 			Topic:  topic,
 			Title:  title,
 			KNOWID: knowID,
+			Path:   filepath.Join(knowDir, entry.Name()),
 		})
 	}
 
@@ -143,7 +145,7 @@ func RenderKnowIndex(entries []knowIndexEntry) string {
 			sb.WriteString(fmt.Sprintf("### %s\n\n", getLayerTopicCN(entry.Layer, entry.Topic)))
 		}
 		// 写条目
-		sb.WriteString(fmt.Sprintf("- [[%s｜%s]]\n", entry.KNOWID, entry.Title))
+		sb.WriteString(fmt.Sprintf("- %s\n", ObsidianFileLink(entry.Path, entry.KNOWID)))
 	}
 
 	sb.WriteString("\n")
@@ -191,8 +193,8 @@ func CheckSimilarKnowCards(vaultPath, knowDir string, newKnowID, newTitle, newLa
 		overlap := countOverlap(newWords, existWords)
 		if overlap > 0 && float64(overlap)/float64(maxLen(len(newWords), len(existWords))) > 0.5 {
 			overlapPct := float64(overlap) * 100 / float64(maxLen(len(newWords), len(existWords)))
-			warnings = append(warnings, fmt.Sprintf("疑似重复：[[%s｜%s]]（标题重叠度 %.0f%%）",
-				entry.KNOWID, entry.Title, overlapPct))
+			warnings = append(warnings, fmt.Sprintf("疑似重复：%s（标题重叠度 %.0f%%）",
+				ObsidianFileLink(entry.Path, entry.KNOWID), overlapPct))
 		}
 	}
 

@@ -48,8 +48,8 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 
 	// 原始材料链接（RAW 在聚合文件中，需要锚点链接）
 	rawPath := GetRawMaterialPath(cfg)
-	rawHeading := JoinHeading(ids.RawID, result.Title)
-	fmt.Fprintf(&sb, "原始材料：%s\n\n", ObsidianHeadingLink(rawPath, rawHeading, ids.RawID+"｜"+result.Title))
+	rawHeading := ids.RawID  // Obsidian 中的标题是 "# RAW-ID"
+	fmt.Fprintf(&sb, "原始材料：%s\n\n", ObsidianHeadingLink(rawPath, rawHeading, ids.RawID))
 
 	// 核心结论
 	fmt.Fprintf(&sb, "## 核心结论\n\n")

@@ -1,6 +1,6 @@
 # investment-kb
 
-投资知识库自动整理 CLI。当前阶段：**模块一 V1.3**。
+投资知识库自动整理 CLI。当前阶段：**模块一 V1.4｜候选规则独立文件化**。
 
 核心流程：
 
@@ -10,9 +10,11 @@
 
 ### rule_candidate
 
-输出：RAW + QA + CR + 规则验证卡。
+输出：RAW + QA + CR 独立文件 + 规则验证卡。
 
 用于包含明确触发条件、执行动作、禁止条件、仓位约束的规则型材料。
+
+每条候选规则写入独立 Markdown 文件，并维护候选规则索引。
 
 ### macro_knowledge
 
@@ -66,8 +68,12 @@
 
 ## 工程验收能力
 
-V1.3 新增重点：
+V1.4 当前重点：
 
+- rule_candidate 的 CR 从聚合文件改为独立文件。
+- 候选规则索引自动更新。
+- RAW / QA / 验证卡链接指向独立 CR 文件。
+- validate 支持 CR 独立文件、候选规则索引、CR 与验证卡一一对应检查。
 - mock-index 与 testdata 输入绑定，防止 mock result 与输入正文错配。
 - RAW 标题/正文一致性校验，非 dry-run 写入前失败即停止。
 - 所有主要输出写入 source metadata：source_file、raw_hash、cleaned_hash、raw_id、material_type。

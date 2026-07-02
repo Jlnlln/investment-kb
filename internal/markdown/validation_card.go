@@ -20,6 +20,7 @@ const DefaultValidationCardTemplate = `# 规则验证卡：{{RULE_NAME}}
 > **原始领域**: {{ORIGINAL_DOMAIN_CODE}}-{{TOPIC_CODE}}
 > **映射领域**: {{DOMAIN_CODE}}-{{TOPIC_CODE}}
 > **建议正式领域**: {{SUGGESTED_FORMAL_DOMAIN}}
+> **对应候选规则**: {{SOURCE_CR_LINK}}
 > **来源知识卡片**: {{SOURCE_QA_LINK}}
 > **来源原文**: {{SOURCE_RAW_LINK}}
 > **source_file**: {{SOURCE_FILE}}
@@ -165,29 +166,30 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 	mappedDomain := idgen.MapCRDomain(rule.DomainCode)
 
 	replacements := map[string]string{
-		"{{RULE_ID}}":              crID,
-		"{{RULE_NAME}}":            rule.RuleName,
-		"{{RULE_TYPE}}":            rule.RuleType,
-		"{{DOMAIN_CODE}}":          rule.DomainCode,
-		"{{ORIGINAL_DOMAIN_CODE}}": rule.OriginalDomainCode,
-		"{{TOPIC_CODE}}":           rule.TopicCode,
-		"{{SHORT_CODE}}":           shortCode,
+		"{{RULE_ID}}":                 crID,
+		"{{RULE_NAME}}":               rule.RuleName,
+		"{{RULE_TYPE}}":               rule.RuleType,
+		"{{DOMAIN_CODE}}":             rule.DomainCode,
+		"{{ORIGINAL_DOMAIN_CODE}}":    rule.OriginalDomainCode,
+		"{{TOPIC_CODE}}":              rule.TopicCode,
+		"{{SHORT_CODE}}":              shortCode,
 		"{{SUGGESTED_FORMAL_DOMAIN}}": mappedDomain,
-		"{{RULE_CONTENT}}":         rule.RuleContent,
-		"{{TRIGGER_CONDITIONS}}":   joinBulletList(rule.TriggerConditions),
-		"{{ACTIONS}}":              joinBulletList(rule.Actions),
-		"{{NOT_APPLICABLE}}":       joinBulletList(rule.NotApplicable),
-		"{{RISK_BOUNDARY}}":        rule.RiskBoundary,
-		"{{QUESTIONS_TO_CONFIRM}}": joinNumberedList(rule.QuestionsToConfirm),
-		"{{RECOMMENDATION}}":       rule.Recommendation,
-		"{{SOURCE_QA_LINK}}":       ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(qaID, result.Title), qaID),
-		"{{SOURCE_RAW_LINK}}":      ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(rawID, result.Title), rawID),
-		"{{APPLICABLE_OBJECTS}}":   joinSimpleList(rule.ApplicableObjects),
-		"{{SOURCE_FILE}}":          result.SourceMeta.SourceFile,
-		"{{RAW_HASH}}":             result.SourceMeta.RawHash,
-		"{{CLEANED_HASH}}":         result.SourceMeta.CleanedHash,
-		"{{RAW_ID}}":               result.SourceMeta.RawID,
-		"{{MATERIAL_TYPE}}":        string(result.SourceMeta.MaterialType),
+		"{{RULE_CONTENT}}":            rule.RuleContent,
+		"{{TRIGGER_CONDITIONS}}":      joinBulletList(rule.TriggerConditions),
+		"{{ACTIONS}}":                 joinBulletList(rule.Actions),
+		"{{NOT_APPLICABLE}}":          joinBulletList(rule.NotApplicable),
+		"{{RISK_BOUNDARY}}":           rule.RiskBoundary,
+		"{{QUESTIONS_TO_CONFIRM}}":    joinNumberedList(rule.QuestionsToConfirm),
+		"{{RECOMMENDATION}}":          rule.Recommendation,
+		"{{SOURCE_QA_LINK}}":          ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(qaID, result.Title), qaID),
+		"{{SOURCE_RAW_LINK}}":         ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(rawID, result.Title), rawID),
+		"{{SOURCE_CR_LINK}}":          CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID),
+		"{{APPLICABLE_OBJECTS}}":      joinSimpleList(rule.ApplicableObjects),
+		"{{SOURCE_FILE}}":             result.SourceMeta.SourceFile,
+		"{{RAW_HASH}}":                result.SourceMeta.RawHash,
+		"{{CLEANED_HASH}}":            result.SourceMeta.CleanedHash,
+		"{{RAW_ID}}":                  result.SourceMeta.RawID,
+		"{{MATERIAL_TYPE}}":           string(result.SourceMeta.MaterialType),
 	}
 
 	// 生成相似规则检查文本
@@ -196,7 +198,7 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 		var sb strings.Builder
 		sb.WriteString("相似候选规则：\n\n")
 		for _, sr := range similarRules {
-			sb.WriteString(fmt.Sprintf("- [[%s#%s|%s]]\n", GetCandidateRulePath(cfg), sr.CRID+"｜"+sr.ShortCode+"｜"+sr.RuleName, sr.CRID))
+			sb.WriteString(fmt.Sprintf("- %s\n", SimilarRuleLink(cfg, sr.CRID, sr.ShortCode, sr.RuleName)))
 			sb.WriteString(fmt.Sprintf("  - 相似原因：%s\n", sr.Reason))
 			sb.WriteString(fmt.Sprintf("  - 相似级别：%s\n", sr.Level))
 		}
@@ -226,11 +228,22 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 		}
 	}
 	content = strings.Join(lines, "\n")
+	content = ensureValidationCandidateRuleLink(content, cfg, crID, rule)
 	content = ensureValidationSourceMetadata(content, result.SourceMeta)
 
 	return content
 }
 
+func ensureValidationCandidateRuleLink(content string, cfg *config.Config, crID string, rule model.CandidateRule) string {
+	if strings.Contains(content, "对应候选规则") {
+		return content
+	}
+	link := "> **对应候选规则**: " + CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID) + "\n"
+	if idx := strings.Index(content, "\n"); idx >= 0 {
+		return content[:idx+1] + link + content[idx+1:]
+	}
+	return content + "\n" + link
+}
 
 func ensureValidationSourceMetadata(content string, meta model.SourceMeta) string {
 	if strings.Contains(content, "source_file:") && strings.Contains(content, "cleaned_hash:") && strings.Contains(content, "raw_id:") {

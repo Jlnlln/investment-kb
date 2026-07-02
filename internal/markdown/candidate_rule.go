@@ -2,7 +2,11 @@ package markdown
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
+	"sort"
 	"strings"
+	"time"
 
 	"investment-kb/internal/config"
 	"investment-kb/internal/dedup"
@@ -28,6 +32,11 @@ func RenderCandidateRules(cfg *config.Config, ids *model.DocumentIDs, result *mo
 	}
 
 	return sb.String()
+}
+
+// RenderCandidateRuleFile 生成单条候选规则独立文件 Markdown。
+func RenderCandidateRuleFile(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rule model.CandidateRule, crID string, similarRules []dedup.SimilarRule) string {
+	return renderSingleCandidateRule(cfg, crID, ids.QAID, ids.RawID, result, ids, rule, similarRules)
 }
 
 // renderSingleCandidateRule 生成单条候选规则 Markdown
@@ -57,14 +66,14 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 		sb.WriteString(fmt.Sprintf("领域分类：%s  \n", rule.DomainCode))
 	}
 
-	sb.WriteString(fmt.Sprintf("来源知识卡片：%s  \n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
-	sb.WriteString(fmt.Sprintf("来源原文：%s  \n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), JoinHeading(ids.RawID, result.Title))))
+	sb.WriteString(fmt.Sprintf("来源知识卡片：%s  \n", ObsidianHeadingLink(GetQaPath(cfg), ids.QAID, ids.QAID)))
+	sb.WriteString(fmt.Sprintf("来源原文：%s  \n", ObsidianHeadingLink(GetRawMaterialPath(cfg), ids.RawID, ids.RawID)))
 
 	caseText := getCaseText(ids, result)
 	if caseText == "暂无" {
 		sb.WriteString(fmt.Sprintf("关联案例：%s  \n", caseText))
 	} else {
-		sb.WriteString(fmt.Sprintf("关联案例：%s  \n", ObsidianHeadingLink(GetMarketCasePath(cfg), JoinHeading(ids.CaseID, result.Case.CaseName), JoinHeading(ids.CaseID, result.Case.CaseName))))
+		sb.WriteString(fmt.Sprintf("关联案例：%s  \n", ObsidianHeadingLink(GetMarketCasePath(cfg), ids.CaseID, ids.CaseID)))
 	}
 
 	if rule.ApplicableObjects != nil && len(rule.ApplicableObjects) > 0 {
@@ -129,7 +138,7 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 	if len(similarRules) > 0 {
 		sb.WriteString("相似候选规则：\n\n")
 		for _, sr := range similarRules {
-			sb.WriteString(fmt.Sprintf("- [[%s#%s|%s]]\n", GetCandidateRulePath(cfg), sr.CRID+"｜"+sr.ShortCode+"｜"+sr.RuleName, sr.CRID))
+			sb.WriteString(fmt.Sprintf("- %s\n", SimilarRuleLink(cfg, sr.CRID, sr.ShortCode, sr.RuleName)))
 			sb.WriteString(fmt.Sprintf("  - 相似原因：%s\n", sr.Reason))
 			sb.WriteString(fmt.Sprintf("  - 相似级别：%s\n", sr.Level))
 		}
@@ -152,4 +161,130 @@ func getCaseText(ids *model.DocumentIDs, result *model.ExtractionResult) string 
 		return fmt.Sprintf("见：%s｜%s", ids.CaseID, result.Case.CaseName)
 	}
 	return "暂无"
+}
+
+// UpdateCandidateRuleIndex 扫描候选规则目录，生成候选规则索引。
+func UpdateCandidateRuleIndex(cfg *config.Config) error {
+	dir := filepath.Join(cfg.ObsidianVaultPath, GetCandidateRuleDir(cfg))
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return fmt.Errorf("读取候选规则目录失败: %w", err)
+	}
+
+	type item struct {
+		ID     string
+		Title  string
+		Domain string
+		Link   string
+	}
+	var items []item
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || !strings.HasPrefix(entry.Name(), "CR-") {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(dir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		id, title := firstCandidateRuleHeading(string(data))
+		if id == "" {
+			id = strings.TrimSuffix(entry.Name(), ".md")
+			if idx := strings.Index(id, "｜"); idx > 0 {
+				id = id[:idx]
+			}
+		}
+		domain := candidateDomainFromID(id)
+		items = append(items, item{
+			ID:     id,
+			Title:  title,
+			Domain: domain,
+			Link:   ObsidianFileLink(filepath.Join(GetCandidateRuleDir(cfg), entry.Name()), id),
+		})
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
+
+	var sb strings.Builder
+	sb.WriteString("# 候选规则索引\n\n")
+	sb.WriteString(fmt.Sprintf("更新时间：%s\n", time.Now().Format("2006-01-02")))
+	sb.WriteString(fmt.Sprintf("候选规则总数：%d\n\n", len(items)))
+	sb.WriteString("---\n\n")
+	sb.WriteString("## 按领域\n\n")
+
+	byDomain := make(map[string][]item)
+	var domains []string
+	for _, it := range items {
+		if !containsCandidateIndexDomain(domains, it.Domain) {
+			domains = append(domains, it.Domain)
+		}
+		byDomain[it.Domain] = append(byDomain[it.Domain], it)
+	}
+	sort.Strings(domains)
+	for _, domain := range domains {
+		sb.WriteString(fmt.Sprintf("### %s\n\n", domain))
+		for _, it := range byDomain[domain] {
+			sb.WriteString(fmt.Sprintf("- %s\n", it.Link))
+			sb.WriteString("  - 状态：候选\n")
+			sb.WriteString("  - 验证状态：待验证\n")
+			sb.WriteString(fmt.Sprintf("  - 验证卡：[[%s]]\n", it.ID))
+		}
+		sb.WriteString("\n")
+	}
+
+	sb.WriteString("---\n\n")
+	sb.WriteString("## 按状态\n\n")
+	sb.WriteString("### 候选\n\n")
+	for _, it := range items {
+		sb.WriteString(fmt.Sprintf("- %s\n", it.Link))
+	}
+	sb.WriteString("\n### 待合并\n\n### 已废弃\n\n")
+	sb.WriteString("---\n\n")
+	sb.WriteString("## 最近新增\n\n")
+	for i := len(items) - 1; i >= 0 && len(items)-i <= 10; i-- {
+		sb.WriteString(fmt.Sprintf("- %s\n", items[i].Link))
+	}
+
+	indexPath := filepath.Join(cfg.ObsidianVaultPath, GetCandidateRuleIndexPath(cfg))
+	if err := os.MkdirAll(filepath.Dir(indexPath), 0755); err != nil {
+		return fmt.Errorf("创建候选规则索引目录失败: %w", err)
+	}
+	if err := os.WriteFile(indexPath, []byte(sb.String()), 0644); err != nil {
+		return fmt.Errorf("写入候选规则索引失败: %w", err)
+	}
+	return nil
+}
+
+func firstCandidateRuleHeading(content string) (string, string) {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if !strings.HasPrefix(line, "# CR-") {
+			continue
+		}
+		heading := strings.TrimPrefix(line, "# ")
+		parts := strings.SplitN(heading, "｜", 2)
+		if len(parts) == 1 {
+			return parts[0], ""
+		}
+		return parts[0], parts[1]
+	}
+	return "", ""
+}
+
+func candidateDomainFromID(id string) string {
+	parts := strings.Split(id, "-")
+	if len(parts) >= 2 {
+		return parts[1]
+	}
+	return "UNKNOWN"
+}
+
+func containsCandidateIndexDomain(items []string, target string) bool {
+	for _, item := range items {
+		if item == target {
+			return true
+		}
+	}
+	return false
 }

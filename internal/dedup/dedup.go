@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 )
@@ -19,15 +20,15 @@ type SimilarRule struct {
 
 // RuleFingerprint 规则指纹，用于去重判断
 type RuleFingerprint struct {
-	CRID           string
-	ShortCode      string
-	DomainCode     string
-	TopicCode      string
-	RuleName       string
-	Triggers       []string
-	Actions        []string
-	ExactHash      string // 精确指纹：sha256(domain + normalized_name + normalized_triggers + normalized_actions)
-	SemanticKey    string // 语义指纹：domain-topic + 核心关键词
+	CRID        string
+	ShortCode   string
+	DomainCode  string
+	TopicCode   string
+	RuleName    string
+	Triggers    []string
+	Actions     []string
+	ExactHash   string // 精确指纹：sha256(domain + normalized_name + normalized_triggers + normalized_actions)
+	SemanticKey string // 语义指纹：domain-topic + 核心关键词
 }
 
 // normalizeText 标准化文本：去空格、去标点、小写
@@ -184,6 +185,30 @@ func ParseExistingCRs(crLibraryPath string) ([]RuleFingerprint, error) {
 	// 最后一条 CR（没有尾部 --- 的情况）
 	flushCurrentCR()
 
+	return fingerprints, nil
+}
+
+// ParseExistingCRDir 从候选规则独立文件目录中解析已有 CR 指纹。
+func ParseExistingCRDir(crDir string) ([]RuleFingerprint, error) {
+	entries, err := os.ReadDir(crDir)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, nil
+		}
+		return nil, fmt.Errorf("读取候选规则目录失败: %w", err)
+	}
+
+	var fingerprints []RuleFingerprint
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".md") || !strings.HasPrefix(entry.Name(), "CR-") {
+			continue
+		}
+		fps, err := ParseExistingCRs(filepath.Join(crDir, entry.Name()))
+		if err != nil {
+			return nil, err
+		}
+		fingerprints = append(fingerprints, fps...)
+	}
 	return fingerprints, nil
 }
 

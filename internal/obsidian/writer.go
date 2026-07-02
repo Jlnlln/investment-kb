@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 )
 
 // AppendMarkdown 将 Markdown 内容追加到 Obsidian 指定文件
@@ -28,6 +29,37 @@ func AppendMarkdown(vaultPath, relativePath, content string) error {
 	}
 
 	return nil
+}
+
+// AppendMarkdownIfMissing 在聚合 Markdown 中不存在指定标题 ID 时才追加内容。
+// 返回值 appended 表示本次是否实际写入。
+func AppendMarkdownIfMissing(vaultPath, relativePath, content, docID string) (bool, error) {
+	fullPath := filepath.Join(vaultPath, relativePath)
+
+	if docID != "" {
+		data, err := os.ReadFile(fullPath)
+		if err != nil && !os.IsNotExist(err) {
+			return false, fmt.Errorf("读取文件失败: %w", err)
+		}
+		if err == nil && aggregateDocExists(string(data), docID) {
+			return false, nil
+		}
+	}
+
+	if err := AppendMarkdown(vaultPath, relativePath, content); err != nil {
+		return false, err
+	}
+	return true, nil
+}
+
+func aggregateDocExists(content, docID string) bool {
+	for _, line := range strings.Split(content, "\n") {
+		line = strings.TrimSpace(line)
+		if line == "# "+docID || strings.HasPrefix(line, "# "+docID+"｜") {
+			return true
+		}
+	}
+	return false
 }
 
 // EnsureFileExists 确保文件存在（为空文件）

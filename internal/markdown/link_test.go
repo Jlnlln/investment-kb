@@ -3,6 +3,8 @@ package markdown
 import (
 	"strings"
 	"testing"
+
+	"investment-kb/internal/config"
 )
 
 func TestObsidianHeadingLink(t *testing.T) {
@@ -151,5 +153,41 @@ func TestReplaceAllBackslashes(t *testing.T) {
 				t.Errorf("ReplaceAllBackslashes(%q) = %q, want %q", tt.input, result, tt.expected)
 			}
 		})
+	}
+}
+
+func TestCandidateRuleStandaloneLink(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Files.CandidateRuleDir = "rules/candidate_rules"
+	cfg.Files.CandidateRuleIndex = "rules/candidate_rules/index.md"
+
+	got := CandidateRuleLink(cfg, "CR-VALUATION-20260702-001", "VALUATION", "SAFETY", "高概率区间先建底仓", "")
+	want := "[[rules/candidate_rules/CR-VALUATION-20260702-001｜VALUATION-SAFETY｜高概率区间先建底仓|CR-VALUATION-20260702-001]]"
+	if got != want {
+		t.Fatalf("CandidateRuleLink() = %s, want %s", got, want)
+	}
+	if strings.Contains(got, "#") {
+		t.Fatalf("standalone candidate rule link should not use heading anchor: %s", got)
+	}
+}
+
+func TestKnowLinkUsesPathAndIDAlias(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Files.MacroKnowledgeDir = "knowledge/macro_cards"
+
+	got := KnowLink(cfg, "KNOW-L3-RATE-20260702-001", "消费与输入性通胀对利率走向的制约")
+	want := "[[knowledge/macro_cards/KNOW-L3-RATE-20260702-001｜消费与输入性通胀对利率走向的制约|KNOW-L3-RATE-20260702-001]]"
+	if got != want {
+		t.Fatalf("KnowLink() = %s, want %s", got, want)
+	}
+}
+
+func TestCandidateRuleFileNameSanitizesWindowsInvalidChars(t *testing.T) {
+	got := CandidateRuleFileName("CR-RISK-20260702-001", "RISK", "PLAN", `买入/卖出:预案? "检查"`)
+	if strings.ContainsAny(got, `\/:*?"<>|`) {
+		t.Fatalf("CandidateRuleFileName contains Windows invalid chars: %s", got)
+	}
+	if !strings.Contains(got, "｜") {
+		t.Fatalf("CandidateRuleFileName should preserve fullwidth separators: %s", got)
 	}
 }

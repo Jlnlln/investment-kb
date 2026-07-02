@@ -13,12 +13,16 @@ import (
 )
 
 type ValidateReport struct {
-	RawCount            int
-	QACount             int
-	KnowCount           int
-	CRCount             int
-	ValidationCardCount int
-	Issues              []string
+	RawCount               int
+	QACount                int
+	KnowCount              int
+	CRCount                int
+	ValidationCardCount    int
+	CandidateRuleIndex     bool
+	OrphanValidationCards  []string
+	MissingValidationCards []string
+	Warnings               []string
+	Issues                 []string
 }
 
 type docRef struct {
@@ -46,7 +50,7 @@ func runValidation(cfg *config.Config) ValidateReport {
 
 	rawDocs := parseAggregateDocs(readVaultFile(cfg, cfg.Files.RawMaterial), "RAW-")
 	qaDocs := parseAggregateDocs(readVaultFile(cfg, cfg.Files.QA), "QA-")
-	crDocs := parseAggregateDocs(readVaultFile(cfg, cfg.Files.CandidateRule), "CR-")
+	crDocs := loadCandidateRuleDocs(cfg)
 	knowDocs := scanStandaloneDocs(filepath.Join(cfg.ObsidianVaultPath, cfg.Files.MacroKnowledgeDir), "KNOW-")
 	vcDocs := scanStandaloneDocs(filepath.Join(cfg.ObsidianVaultPath, cfg.Files.ValidationCardDir), "CR-")
 
@@ -56,6 +60,16 @@ func runValidation(cfg *config.Config) ValidateReport {
 	report.CRCount = len(crDocs)
 	report.ValidationCardCount = len(vcDocs)
 
+	if markdown.UseStandaloneCandidateRules(cfg) {
+		if _, err := os.Stat(filepath.Join(cfg.ObsidianVaultPath, markdown.GetCandidateRuleIndexPath(cfg))); err == nil {
+			report.CandidateRuleIndex = true
+		} else {
+			report.Issues = append(report.Issues, "候选规则索引不存在："+markdown.GetCandidateRuleIndexPath(cfg))
+		}
+	} else {
+		report.CandidateRuleIndex = false
+	}
+
 	if report.CRCount != report.ValidationCardCount {
 		report.Issues = append(report.Issues, fmt.Sprintf("CR 数量(%d) != 验证卡数量(%d)", report.CRCount, report.ValidationCardCount))
 	}
@@ -64,9 +78,18 @@ func runValidation(cfg *config.Config) ValidateReport {
 	for _, doc := range crDocs {
 		crIDs[doc.ID] = true
 	}
+	vcIDs := make(map[string]bool)
 	for _, doc := range vcDocs {
+		vcIDs[doc.ID] = true
 		if !crIDs[doc.ID] {
+			report.OrphanValidationCards = append(report.OrphanValidationCards, doc.ID)
 			report.Issues = append(report.Issues, fmt.Sprintf("孤立验证卡：%s", doc.ID))
+		}
+	}
+	for _, doc := range crDocs {
+		if !vcIDs[doc.ID] {
+			report.MissingValidationCards = append(report.MissingValidationCards, doc.ID)
+			report.Issues = append(report.Issues, fmt.Sprintf("缺失验证卡：%s", doc.ID))
 		}
 	}
 
@@ -124,6 +147,12 @@ func runValidation(cfg *config.Config) ValidateReport {
 	if _, err := os.Stat(oldKnowPath); err == nil {
 		report.Issues = append(report.Issues, "存在旧文件："+oldKnowPath)
 	}
+	if cfg.Files.CandidateRule != "" {
+		legacyCRPath := filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule)
+		if _, err := os.Stat(legacyCRPath); err == nil {
+			report.Warnings = append(report.Warnings, "legacy candidate rule library exists: "+legacyCRPath)
+		}
+	}
 
 	return report
 }
@@ -135,6 +164,20 @@ func printValidateReport(report ValidateReport) {
 	fmt.Printf("KNOW count: %d\n", report.KnowCount)
 	fmt.Printf("CR count: %d\n", report.CRCount)
 	fmt.Printf("validation card count: %d\n", report.ValidationCardCount)
+	if report.CandidateRuleIndex {
+		fmt.Println("candidate rule index: exists")
+	} else {
+		fmt.Println("candidate rule index: missing")
+	}
+	if len(report.OrphanValidationCards) == 0 {
+		fmt.Println("orphan validation cards: none")
+	}
+	if len(report.MissingValidationCards) == 0 {
+		fmt.Println("missing validation cards: none")
+	}
+	for _, warning := range report.Warnings {
+		fmt.Println("warning: " + warning)
+	}
 	if len(report.Issues) == 0 {
 		fmt.Println("source mismatch: none")
 		fmt.Println("status: PASS")
@@ -145,6 +188,13 @@ func printValidateReport(report ValidateReport) {
 		fmt.Println("- " + issue)
 	}
 	fmt.Println("status: FAIL")
+}
+
+func loadCandidateRuleDocs(cfg *config.Config) []docRef {
+	if markdown.UseStandaloneCandidateRules(cfg) {
+		return scanStandaloneDocs(filepath.Join(cfg.ObsidianVaultPath, markdown.GetCandidateRuleDir(cfg)), "CR-")
+	}
+	return parseAggregateDocs(readVaultFile(cfg, cfg.Files.CandidateRule), "CR-")
 }
 
 func readVaultFile(cfg *config.Config, relativePath string) string {

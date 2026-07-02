@@ -10,7 +10,7 @@
 - **项目名称**：investment-kb
 - **项目类型**：CLI 工具
 - **Go 版本**：1.23
-- **当前阶段**：模块一 V1.3
+- **当前阶段**：模块一 V1.4｜候选规则独立文件化
 - **核心目标**：原文 -> AI 结构化 JSON -> 按 material_type 分流 -> Obsidian Markdown + 验收检查
 - **版本**：0.1.0
 
@@ -19,8 +19,9 @@
 ## 当前支持的 material_type 分流
 
 1. **rule_candidate**
-   - 输出：RAW + QA + CR + 规则验证卡
+   - 输出：RAW + QA + CR 独立文件 + 规则验证卡
    - 用于可沉淀为候选规则的材料。
+   - 每条 CR 写入独立 Markdown 文件，并维护候选规则索引。
 
 2. **macro_knowledge**
    - 输出：RAW + KNOW 单文件
@@ -38,12 +39,14 @@
 
 ## 当前重点
 
-模块一 V1.3 的重点不是继续扩功能，而是补工程验收能力：
+模块一 V1.4 的重点是在 V1.3/V1.3.1 工程验收能力基础上，小范围改造候选规则输出结构：
 
+- 候选规则 CR 从聚合文件改为独立文件，并维护候选规则索引。
+- RAW / QA / 验证卡中的候选规则链接应指向独立 CR 文件。
+- validate 命令需要支持 CR 独立文件、候选规则索引、CR 与验证卡一一对应检查。
 - mock 输入与 mock result 必须绑定，避免 RAW 正文与 QA/CR/KNOW 语义错配。
 - RAW 标题与正文必须做一致性校验，非 dry-run 写入前必须通过。
 - 所有输出对象必须携带 source metadata：source_file、raw_hash、cleaned_hash、raw_id、material_type。
-- 提供 validate 命令检查输出库的一致性。
 - 提供回归脚本完成清洁重跑验证。
 
 ---

@@ -9,100 +9,100 @@ import (
 
 func TestValidateExtractionResult_CaseValidation(t *testing.T) {
 	tests := []struct {
-		name         string
+		name          string
 		shouldGenCase bool
-		case_        *model.MarketCase
-		caseReason   string
-		expectError  bool
+		case_         *model.MarketCase
+		caseReason    string
+		expectError   bool
 	}{
 		{
-			name:         "ShouldGenerateCase=false 时 Case 为 nil（合法）",
+			name:          "ShouldGenerateCase=false 时 Case 为 nil（合法）",
 			shouldGenCase: false,
-			case_:        nil,
-			caseReason:   "原因",
-			expectError:  false,
+			case_:         nil,
+			caseReason:    "原因",
+			expectError:   false,
 		},
 		{
-			name:         "ShouldGenerateCase=false 时 CaseInsufficientReason 为空（错误）",
+			name:          "ShouldGenerateCase=false 时 CaseInsufficientReason 为空（错误）",
 			shouldGenCase: false,
-			case_:        nil,
-			caseReason:   "",
-			expectError:  true,
+			case_:         nil,
+			caseReason:    "",
+			expectError:   true,
 		},
 		{
-			name:         "ShouldGenerateCase=false 时 Case 不为 nil（错误）",
+			name:          "ShouldGenerateCase=false 时 Case 不为 nil（错误）",
 			shouldGenCase: false,
-			case_:        &model.MarketCase{CaseName: "测试"},
-			caseReason:   "原因",
-			expectError:  true,
+			case_:         &model.MarketCase{CaseName: "测试"},
+			caseReason:    "原因",
+			expectError:   true,
 		},
 		{
-			name:         "ShouldGenerateCase=true 时 Case 为 nil（错误）",
+			name:          "ShouldGenerateCase=true 时 Case 为 nil（错误）",
 			shouldGenCase: true,
-			case_:        nil,
-			caseReason:   "原因",
-			expectError:  true,
+			case_:         nil,
+			caseReason:    "原因",
+			expectError:   true,
 		},
 		{
-			name:         "ShouldGenerateCase=true 时 CaseName 为空（错误）",
+			name:          "ShouldGenerateCase=true 时 CaseName 为空（错误）",
 			shouldGenCase: true,
-			case_:        &model.MarketCase{},
-			caseReason:   "原因",
-			expectError:  true,
+			case_:         &model.MarketCase{},
+			caseReason:    "原因",
+			expectError:   true,
 		},
 		{
-			name:         "ShouldGenerateCase=true 时 DomainCode 为空（错误）",
+			name:          "ShouldGenerateCase=true 时 DomainCode 为空（错误）",
 			shouldGenCase: true,
 			case_: &model.MarketCase{
-				CaseName:      "测试案例",
-				DomainCode:    "",
-				TopicCode:     "交易",
+				CaseName:            "测试案例",
+				DomainCode:          "",
+				TopicCode:           "交易",
 				KeyDecisionQuestion: "如何决策?",
-				FinalInsight:  "心得",
+				FinalInsight:        "心得",
 			},
-			caseReason:   "原因",
-			expectError:  true,
+			caseReason:  "原因",
+			expectError: true,
 		},
 		{
-			name:         "ShouldGenerateCase=true 时所有字段都为空（错误）",
+			name:          "ShouldGenerateCase=true 时所有字段都为空（错误）",
 			shouldGenCase: true,
 			case_: &model.MarketCase{
-				CaseName:      "",
-				DomainCode:    "",
-				TopicCode:     "",
+				CaseName:            "",
+				DomainCode:          "",
+				TopicCode:           "",
 				KeyDecisionQuestion: "",
-				FinalInsight:  "",
+				FinalInsight:        "",
 			},
-			caseReason:   "原因",
-			expectError:  true,
+			caseReason:  "原因",
+			expectError: true,
 		},
 		{
-			name:         "ShouldGenerateCase=true 时所有字段都合法",
+			name:          "ShouldGenerateCase=true 时所有字段都合法",
 			shouldGenCase: true,
 			case_: &model.MarketCase{
-				CaseName:      "测试案例",
-				DomainCode:    "买入",
-				TopicCode:     "交易",
+				CaseName:            "测试案例",
+				DomainCode:          "买入",
+				TopicCode:           "交易",
 				KeyDecisionQuestion: "如何决策?",
-				FinalInsight:  "心得",
+				FinalInsight:        "心得",
 			},
-			caseReason:   "原因",
-			expectError:  false,
+			caseReason:  "原因",
+			expectError: false,
 		},
 		{
-			name:         "ShouldGenerateCase=false 时所有字段都合法",
+			name:          "ShouldGenerateCase=false 时所有字段都合法",
 			shouldGenCase: false,
-			case_:        nil,
-			caseReason:   "原因",
-			expectError:  false,
+			case_:         nil,
+			caseReason:    "原因",
+			expectError:   false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			result := &model.ExtractionResult{
-				ShouldGenerateCase: tc.shouldGenCase,
-				Case:               tc.case_,
+				ShouldGenerateCase:     tc.shouldGenCase,
+				Case:                   tc.case_,
 				CaseInsufficientReason: tc.caseReason,
 			}
 
@@ -155,6 +155,7 @@ func TestCheckAbsoluteClaims(t *testing.T) {
 			"当前不建议满仓。",
 			"不能因为低估就梭哈。",
 			"高胜率不意味着保证盈利。",
+			"分仓应对不等于没有亏损风险。",
 		}
 		for _, text := range tests {
 			result := &model.ExtractionResult{
@@ -188,50 +189,50 @@ func TestCheckAbsoluteClaims(t *testing.T) {
 
 func TestContainsForbiddenPhrases(t *testing.T) {
 	tests := []struct {
-		name  string
-		text  string
+		name        string
+		text        string
 		expectError bool
 		errContains string
 	}{
 		{
-			name:  "可直接满仓",
-			text:  "可直接满仓",
+			name:        "可直接满仓",
+			text:        "可直接满仓",
 			expectError: true,
 			errContains: "可直接满仓",
 		},
 		{
-			name:  "应直接满仓",
-			text:  "应直接满仓",
+			name:        "应直接满仓",
+			text:        "应直接满仓",
 			expectError: true,
 			errContains: "应直接满仓",
 		},
 		{
-			name:  "可以满仓",
-			text:  "可以满仓",
+			name:        "可以满仓",
+			text:        "可以满仓",
 			expectError: true,
 			errContains: "可以满仓",
 		},
 		{
-			name:  "满仓买入",
-			text:  "满仓买入",
+			name:        "满仓买入",
+			text:        "满仓买入",
 			expectError: true,
 			errContains: "满仓买入",
 		},
 		{
-			name:  "直接满仓",
-			text:  "直接满仓",
+			name:        "直接满仓",
+			text:        "直接满仓",
 			expectError: true,
 			errContains: "直接满仓",
 		},
 		{
-			name:  "高确定性时可直接满仓",
-			text:  "高确定性时可直接满仓",
+			name:        "高确定性时可直接满仓",
+			text:        "高确定性时可直接满仓",
 			expectError: true,
 			errContains: "高确定性时可直接满仓",
 		},
 		{
-			name:  "不包含任何禁止表达",
-			text:  "这个方法可能会赚钱，也有可能亏损",
+			name:        "不包含任何禁止表达",
+			text:        "这个方法可能会赚钱，也有可能亏损",
 			expectError: false,
 		},
 	}
@@ -256,12 +257,12 @@ func TestContainsForbiddenPhrases(t *testing.T) {
 
 func TestWarnRuleTypeDomainMismatch(t *testing.T) {
 	tests := []struct {
-		name         string
-		rules        []model.CandidateRule
+		name           string
+		rules          []model.CandidateRule
 		expectWarnings int
 	}{
 		{
-			name:         "所有 domain_code 都是 BUY",
+			name: "所有 domain_code 都是 BUY",
 			rules: []model.CandidateRule{
 				{RuleType: "买入规则", DomainCode: "BUY", TopicCode: "SAFETY", RuleName: "高概率区间先建底仓"},
 				{RuleType: "买入规则", DomainCode: "BUY", TopicCode: "POSITION", RuleName: "仓位管理"},
@@ -286,8 +287,8 @@ func TestWarnRuleTypeDomainMismatch(t *testing.T) {
 			expectWarnings: 2,
 		},
 		{
-			name:         "没有买入规则",
-			rules:        []model.CandidateRule{},
+			name:           "没有买入规则",
+			rules:          []model.CandidateRule{},
 			expectWarnings: 0,
 		},
 		{

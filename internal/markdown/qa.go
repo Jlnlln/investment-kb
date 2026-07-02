@@ -32,8 +32,7 @@ func RenderKnowledgeCard(cfg *config.Config, ids *model.DocumentIDs, result *mod
 	for i, crID := range ids.CandidateIDs {
 		if i < len(result.CandidateRules) {
 			rule := result.CandidateRules[i]
-			crHeading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
-			sb.WriteString(fmt.Sprintf("- %s\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), crHeading, crID)))
+			sb.WriteString(fmt.Sprintf("- %s\n", CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID)))
 		}
 	}
 	sb.WriteString("\n")
@@ -112,8 +111,7 @@ func RenderKnowledgeCard(cfg *config.Config, ids *model.DocumentIDs, result *mod
 		for _, idx := range indices {
 			rule := result.CandidateRules[idx]
 			crID := ids.CandidateIDs[idx]
-			crHeading := JoinCandidateRuleHeading(crID, rule.DomainCode, rule.TopicCode, rule.RuleName)
-			sb.WriteString(fmt.Sprintf("- %s\n\n", ObsidianHeadingLink(GetCandidateRulePath(cfg), crHeading, crID)))
+			sb.WriteString(fmt.Sprintf("- %s\n\n", CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID)))
 			sb.WriteString(rule.RuleContent)
 			sb.WriteString("\n\n")
 		}
@@ -134,11 +132,11 @@ func RenderKnowledgeCard(cfg *config.Config, ids *model.DocumentIDs, result *mod
 	// 8. 我的理解
 	sb.WriteString("---\n\n")
 	sb.WriteString("## 8. 我的理解\n\n")
-		if result.MyUnderstanding == "" {
-			sb.WriteString("待补充。")
-		} else {
-			sb.WriteString(result.MyUnderstanding)
-		}
+	if result.MyUnderstanding == "" {
+		sb.WriteString("待补充。")
+	} else {
+		sb.WriteString(result.MyUnderstanding)
+	}
 	sb.WriteString("\n")
 
 	return sb.String()

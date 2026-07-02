@@ -57,6 +57,7 @@ New-Item -ItemType Directory -Force -Path $Vault | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Vault "raw") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Vault "qa") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Vault "rules") | Out-Null
+New-Item -ItemType Directory -Force -Path (Join-Path $Vault "rules\candidate_rules") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Vault "rules\validation_cards") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Vault "knowledge\macro_cards") | Out-Null
 New-Item -ItemType Directory -Force -Path (Join-Path $Vault "observations\market_cards") | Out-Null
@@ -79,6 +80,8 @@ obsidian_vault_path: "$vaultYaml"
 files:
   raw_material: "raw/raw_material.md"
   qa: "qa/qa_library.md"
+  candidate_rule_dir: "rules/candidate_rules"
+  candidate_rule_index: "rules/candidate_rules/index.md"
   candidate_rule: "rules/candidate_rules.md"
   market_case: "rules/market_cases.md"
   validation_card_template: "templates/validation_card_template.md"
