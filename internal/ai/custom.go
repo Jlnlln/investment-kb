@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -11,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 
@@ -28,11 +30,11 @@ func newCustomClient(cfg *Config) *customClient {
 
 // anthropic Messages API 请求/响应类型
 type messagesRequest struct {
-	Model     string        `json:"model"`
-	MaxTokens int           `json:"max_tokens"`
-	System    string        `json:"system,omitempty"`
-	Messages  []messageItem `json:"messages"`
-	Temperature float64     `json:"temperature"` // 固定为 0，确保输出稳定性
+	Model       string        `json:"model"`
+	MaxTokens   int           `json:"max_tokens"`
+	System      string        `json:"system,omitempty"`
+	Messages    []messageItem `json:"messages"`
+	Temperature float64       `json:"temperature"` // 固定为 0，确保输出稳定性
 }
 
 type messageItem struct {
@@ -60,6 +62,62 @@ type apiError struct {
 
 var lastCallTime time.Time
 
+type contextKey string
+
+const (
+	debugInputPathKey contextKey = "ai_debug_input_path"
+	debugDirKey       contextKey = "ai_debug_dir"
+)
+
+var completeJSONBackoffs = []time.Duration{time.Second, 3 * time.Second}
+var retryAfterFallback = 10 * time.Second
+
+// WithDebugInfo attaches metadata used when saving AI JSON parse failures.
+func WithDebugInfo(ctx context.Context, inputPath, debugDir string) context.Context {
+	ctx = context.WithValue(ctx, debugInputPathKey, inputPath)
+	if debugDir != "" {
+		ctx = context.WithValue(ctx, debugDirKey, debugDir)
+	}
+	return ctx
+}
+
+type retryableAIError struct {
+	err           error
+	retryAfter    time.Duration
+	hasRetryAfter bool
+}
+
+func (e retryableAIError) Error() string { return e.err.Error() }
+func (e retryableAIError) Unwrap() error { return e.err }
+
+type nonRetryableAIError struct {
+	err error
+}
+
+func (e nonRetryableAIError) Error() string { return e.err.Error() }
+func (e nonRetryableAIError) Unwrap() error { return e.err }
+
+func retryable(err error) error {
+	if err == nil {
+		return nil
+	}
+	return retryableAIError{err: err}
+}
+
+func retryableWithDelay(err error, retryAfter time.Duration) error {
+	if err == nil {
+		return nil
+	}
+	return retryableAIError{err: err, retryAfter: retryAfter, hasRetryAfter: true}
+}
+
+func nonRetryable(err error) error {
+	if err == nil {
+		return nil
+	}
+	return nonRetryableAIError{err: err}
+}
+
 // Complete 发送请求并返回原始文本
 func (c *customClient) Complete(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
 	return c.doCall(ctx, systemPrompt, userPrompt)
@@ -67,27 +125,98 @@ func (c *customClient) Complete(ctx context.Context, systemPrompt, userPrompt st
 
 // CompleteJSON 发送请求并将结果解析为结构体
 func (c *customClient) CompleteJSON(ctx context.Context, systemPrompt, userPrompt string, v any) error {
-	raw, err := c.doCall(ctx, systemPrompt, userPrompt)
+	var lastErr error
+	for attempt := 1; attempt <= 3; attempt++ {
+		raw, err := c.doCallOnce(ctx, systemPrompt, userPrompt)
+		if err != nil {
+			lastErr = err
+			if !isRetryableAIError(err) || attempt == 3 {
+				return err
+			}
+			waitBeforeAIJSONRetry(attempt, err)
+			continue
+		}
+
+		// 使用 ExtractJSONFromAIOutput 清洗输出
+		cleaned, err := ExtractJSONFromAIOutput(raw)
+		if err != nil {
+			lastErr = fmt.Errorf("JSON 提取失败: %w", err)
+			saveAIJSONFailure(ctx, raw, attempt, lastErr)
+			if attempt == 3 {
+				return lastErr
+			}
+			waitBeforeAIJSONRetry(attempt, nil)
+			continue
+		}
+
+		// 尝试解析 JSON
+		if err := json.Unmarshal([]byte(cleaned), v); err != nil {
+			lastErr = fmt.Errorf("JSON 解析失败: %w", err)
+			saveAIJSONFailure(ctx, raw, attempt, lastErr)
+			if attempt == 3 {
+				return lastErr
+			}
+			waitBeforeAIJSONRetry(attempt, nil)
+			continue
+		}
+
+		return nil
+	}
+
+	return lastErr
+}
+
+func waitBeforeAIJSONRetry(attempt int, err error) {
+	if attempt <= 0 || attempt > len(completeJSONBackoffs) {
+		return
+	}
+	backoff := completeJSONBackoffs[attempt-1]
+	var retryableErr retryableAIError
+	if errors.As(err, &retryableErr) && retryableErr.hasRetryAfter {
+		backoff = retryableErr.retryAfter
+	}
+	if backoff <= 0 {
+		return
+	}
+	fmt.Printf("   ⏳ AI 调用/JSON 解析失败，准备重试 %d/2（等待 %v）...\n", attempt, backoff)
+	time.Sleep(backoff)
+}
+
+func isRetryableAIError(err error) bool {
+	var nonRetryableErr nonRetryableAIError
+	if errors.As(err, &nonRetryableErr) {
+		return false
+	}
+	var retryableErr retryableAIError
+	return errors.As(err, &retryableErr)
+}
+
+func (c *customClient) doCallOnce(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
+	if elapsed := time.Since(lastCallTime); elapsed < time.Second {
+		time.Sleep(time.Second - elapsed)
+	}
+
+	reqBody := messagesRequest{
+		Model:     c.cfg.Model,
+		MaxTokens: 4096,
+		System:    systemPrompt,
+		Messages: []messageItem{
+			{Role: "user", Content: userPrompt},
+		},
+		Temperature: c.cfg.Temperature,
+	}
+
+	bodyBytes, err := json.Marshal(reqBody)
 	if err != nil {
-		return err
+		return "", nonRetryable(fmt.Errorf("序列化请求失败: %w", err))
 	}
 
-	// 使用 ExtractJSONFromAIOutput 清洗输出
-	cleaned, err := ExtractJSONFromAIOutput(raw)
+	rawText, err := c.doHTTPRequest(ctx, bodyBytes)
 	if err != nil {
-		// 清洗失败，保存原始输出
-		saveErrorOutput(raw, "ExtractJSONFromAIOutput", err.Error(), "", "")
-		return fmt.Errorf("JSON 提取失败: %w", err)
+		return "", err
 	}
-
-	// 尝试解析 JSON
-	if err := json.Unmarshal([]byte(cleaned), v); err != nil {
-		// JSON 解析失败，保存原始输出和清洗后的输出
-		saveErrorOutput(raw, "json.Unmarshal", err.Error(), "", "")
-		return fmt.Errorf("JSON 解析失败: %w", err)
-	}
-
-	return nil
+	lastCallTime = time.Now()
+	return rawText, nil
 }
 
 func (c *customClient) doCall(ctx context.Context, systemPrompt, userPrompt string) (string, error) {
@@ -127,6 +256,10 @@ func (c *customClient) doCall(ctx context.Context, systemPrompt, userPrompt stri
 
 		rawText, lastErr = c.doHTTPRequest(ctx, bodyBytes)
 		if lastErr != nil {
+			var nonRetryableErr nonRetryableAIError
+			if errors.As(lastErr, &nonRetryableErr) {
+				return "", lastErr
+			}
 			continue
 		}
 
@@ -152,43 +285,68 @@ func (c *customClient) doHTTPRequest(ctx context.Context, body []byte) (string, 
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return "", fmt.Errorf("HTTP 请求失败: %w", err)
+		return "", retryable(fmt.Errorf("HTTP 请求失败: %w", err))
 	}
 	defer resp.Body.Close()
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return "", fmt.Errorf("读取响应失败: %w", err)
+		return "", retryable(fmt.Errorf("读取响应失败: %w", err))
 	}
 
 	if resp.StatusCode == http.StatusTooManyRequests {
-		return "", fmt.Errorf("触发速率限制 (429)")
+		return "", retryableWithDelay(fmt.Errorf("触发速率限制 (429)"), parseRetryAfter(resp.Header.Get("Retry-After")))
 	}
 	if resp.StatusCode >= 500 {
 		// 529 是服务端过载错误，应该重试
 		if resp.StatusCode == 529 {
-			return "", fmt.Errorf("服务端过载错误 (529): %s", truncate(string(respBody), 200))
+			return "", retryable(fmt.Errorf("服务端过载错误 (529): %s", truncate(string(respBody), 200)))
 		}
-		return "", fmt.Errorf("服务端错误 (%d): %s", resp.StatusCode, truncate(string(respBody), 200))
+		return "", retryable(fmt.Errorf("服务端错误 (%d): %s", resp.StatusCode, truncate(string(respBody), 200)))
 	}
 	if resp.StatusCode >= 400 {
 		var apiErr apiError
 		if json.Unmarshal(respBody, &apiErr) == nil && apiErr.Message != "" {
-			return "", fmt.Errorf("API 错误 (%d): %s", resp.StatusCode, apiErr.Message)
+			return "", nonRetryable(fmt.Errorf("API 错误 (%d): %s", resp.StatusCode, apiErr.Message))
 		}
-		return "", fmt.Errorf("客户端错误 (%d): %s", resp.StatusCode, truncate(string(respBody), 200))
+		return "", nonRetryable(fmt.Errorf("客户端错误 (%d): %s", resp.StatusCode, truncate(string(respBody), 200)))
 	}
 
 	var msgResp messagesResponse
 	if err := json.Unmarshal(respBody, &msgResp); err != nil {
-		return "", fmt.Errorf("解析响应失败: %w", err)
+		return "", retryable(fmt.Errorf("解析响应失败: %w", err))
 	}
 
 	if len(msgResp.Content) == 0 {
-		return "", fmt.Errorf("响应内容为空")
+		return "", retryable(fmt.Errorf("响应内容为空"))
+	}
+
+	if strings.TrimSpace(msgResp.Content[0].Text) == "" {
+		return "", retryable(fmt.Errorf("AI 返回空内容"))
 	}
 
 	return msgResp.Content[0].Text, nil
+}
+
+func parseRetryAfter(value string) time.Duration {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return retryAfterFallback
+	}
+	if seconds, err := strconv.Atoi(value); err == nil {
+		if seconds < 0 {
+			return retryAfterFallback
+		}
+		return time.Duration(seconds) * time.Second
+	}
+	if retryTime, err := http.ParseTime(value); err == nil {
+		wait := time.Until(retryTime)
+		if wait < 0 {
+			return 0
+		}
+		return wait
+	}
+	return retryAfterFallback
 }
 
 func truncate(s string, n int) string {
@@ -274,6 +432,44 @@ AI 原始输出结尾 (后 500 字符):
 		truncate(raw, 500),
 		raw)
 	_ = writeToFile(filename, content)
+}
+
+func saveAIJSONFailure(ctx context.Context, raw string, attempt int, err error) {
+	inputPath, _ := ctx.Value(debugInputPathKey).(string)
+	debugDir, _ := ctx.Value(debugDirKey).(string)
+	if debugDir == "" {
+		debugDir = filepath.Join("data", "debug", "ai_failures")
+	}
+	inputName := filepath.Base(inputPath)
+	if inputName == "." || inputName == string(filepath.Separator) || inputName == "" {
+		inputName = "unknown-input"
+	}
+	inputName = sanitizeDebugFileName(inputName)
+	filename := fmt.Sprintf("%s_%s_attempt-%d.txt", time.Now().Format("20060102_150405"), inputName, attempt)
+	path := filepath.Join(debugDir, filename)
+	content := fmt.Sprintf(`input path: %s
+attempt: %d
+error: %v
+
+raw AI response:
+%s
+`, inputPath, attempt, err, raw)
+	_ = writeToFile(path, content)
+}
+
+func sanitizeDebugFileName(name string) string {
+	replacer := strings.NewReplacer(
+		"\\", "_",
+		"/", "_",
+		":", "_",
+		"*", "_",
+		"?", "_",
+		"\"", "_",
+		"<", "_",
+		">", "_",
+		"|", "_",
+	)
+	return strings.TrimSpace(replacer.Replace(name))
 }
 
 func writeToFile(path, content string) error {
@@ -533,19 +729,17 @@ func hasNegativePhrase(text string) bool {
 		}
 	}
 
-		// 检查整个句子是否完全匹配负面短语（处理"不得直接满仓"这类句子）
-		for _, phrase := range negativeWords {
-			if text == phrase {
-				fmt.Printf("      Found exact phrase match: '%s'\n", phrase)
-				return true
-			}
+	// 检查整个句子是否完全匹配负面短语（处理"不得直接满仓"这类句子）
+	for _, phrase := range negativeWords {
+		if text == phrase {
+			fmt.Printf("      Found exact phrase match: '%s'\n", phrase)
+			return true
 		}
-
-		fmt.Printf("      No negative phrase found\n")
-		return false
 	}
 
-
+	fmt.Printf("      No negative phrase found\n")
+	return false
+}
 
 // debugHasNegativePhrase 调试版本（临时）
 func debugHasNegativePhrase(text string) bool {

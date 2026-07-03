@@ -21,7 +21,7 @@ type Config struct {
 	BaseURL     string
 	APIKey      string
 	TimeoutSec  int
-	MaxRetries  int
+	MaxRetries  int     // 仅用于 Complete 原始文本调用；CompleteJSON 固定最多 3 次尝试。
 	Temperature float64 // 默认 0，确保输出稳定性
 }
 

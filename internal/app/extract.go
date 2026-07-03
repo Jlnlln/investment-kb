@@ -150,7 +150,7 @@ func Extract(opts *ExtractOptions) error {
 	} else {
 		// 调用 AI 获取结果
 		fmt.Printf("🤖 正在调用 AI...\n")
-		result, err = callAI(cfg, string(rawText), opts.Source)
+		result, err = callAI(cfg, string(rawText), opts.Source, opts.InputPath)
 		if err != nil {
 			return fmt.Errorf("AI 调用失败: %w", err)
 		}
@@ -697,7 +697,7 @@ func deduplicateCandidateRules(rules []model.CandidateRule) []model.CandidateRul
 }
 
 // callAI 调用 AI 获取 ExtractionResult
-func callAI(cfg *config.Config, rawText, source string) (*model.ExtractionResult, error) {
+func callAI(cfg *config.Config, rawText, source, inputPath string) (*model.ExtractionResult, error) {
 	// 创建 AI 客户端
 	apiKey := cfg.GetAPIKey()
 	if apiKey == "" {
@@ -710,7 +710,6 @@ func callAI(cfg *config.Config, rawText, source string) (*model.ExtractionResult
 		BaseURL:     cfg.AI.BaseURL,
 		APIKey:      apiKey,
 		TimeoutSec:  cfg.AI.TimeoutSec,
-		MaxRetries:  3,
 		Temperature: cfg.AI.Temperature,
 	})
 	if err != nil {
@@ -730,6 +729,7 @@ func callAI(cfg *config.Config, rawText, source string) (*model.ExtractionResult
 	var result model.ExtractionResult
 	ctx, cancel := context.WithTimeout(context.Background(), time.Duration(cfg.AI.TimeoutSec)*time.Second)
 	defer cancel()
+	ctx = ai.WithDebugInfo(ctx, inputPath, "")
 
 	if err := client.CompleteJSON(ctx, systemPrompt, userPrompt, &result); err != nil {
 		return nil, err
