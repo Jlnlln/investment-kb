@@ -1229,6 +1229,110 @@ should_generate_case 默认应为 false。
 
 ---
 
+## 十三、JSON 输出格式示例
+
+你必须输出合法的 JSON。以下是输出格式的完整示例，**不是让你照搬内容，而是理解字段结构**：
+
+### 示例 1：rule_candidate 类型（生成 CR）
+
+```json
+{
+  "title": "安全边际与踏空风险如何平衡",
+  "source": "陈老师问答",
+  "material_type": "rule_candidate",
+  "generate_qa": true,
+  "generate_candidate_rules": true,
+  "generate_validation_cards": true,
+  "generate_knowledge_card": false,
+  "generate_observation_card": false,
+  "domain_code": "ACCOUNT",
+  "topic_code": "SAFETY",
+  "tags": ["仓位管理", "安全边际", "踏空风险"],
+  "summary": "讨论如何在追求安全边际与避免踏空之间取得平衡。",
+  "core_conclusion": "安全边际的设定必须结合账户状态，不能脱离持仓成本谈安全。",
+  "core_logic": [
+    {"title": "账户状态决定仓位力度", "content": "低成本持仓者与空仓者不能使用同一仓位计划。"},
+    {"title": "空仓者需制定容错计划", "content": "在高概率区间不能因追求极致安全边际而拒绝建仓。"}
+  ],
+  "applicable_scenarios": ["宽基指数进入高概率买入区间", "空仓者制定建仓计划时"],
+  "risk_boundaries": ["个股、主题基金、缺乏历史数据的资产", "账户触发 hard_block 时不得加仓"],
+  "extractable_rules": [
+    {"rule_type": "买入规则", "rule_name": "高概率区间先建底仓", "summary": "在高概率区间建立第一笔底仓。"}
+  ],
+  "should_generate_case": false,
+  "case": null,
+  "case_insufficient_reason": "原文仅提及标普回撤 example，但缺乏具体时间、点位、完整后续走势及复盘结果。",
+  "candidate_rules": [
+    {
+      "rule_type": "仓位规则",
+      "rule_name": "账户状态决定仓位力度",
+      "domain_code": "ACCOUNT",
+      "topic_code": "POS",
+      "suggested_formal_rule_id": "ACCOUNT-POS-001",
+      "rule_content": "是否提高仓位必须结合账户状态、持仓成本、现金比例。",
+      "trigger_conditions": ["宽基指数进入高概率买入区间", "准备执行买入或加仓操作"],
+      "actions": ["检查当前账户持仓成本与安全垫", "评估现金比例与仓位上限"],
+      "not_applicable": ["个股、主题基金", "账户触发 hard_block 状态"],
+      "risk_boundary": "空仓者不得照搬低成本持仓者的仓位计划。",
+      "questions_to_confirm": ["账户状态的量化阈值如何界定？"],
+      "recommendation": "建议修改后采纳。需明确量化标准。",
+      "applicable_objects": ["宽基指数", "低成本持仓者"]
+    }
+  ],
+  "my_understanding": "投资决策不能只看市场点位，还要看账户状态。"
+}
+```
+
+### 示例 2：macro_knowledge 类型（生成 KNOW）
+
+```json
+{
+  "title": "消费与输入性通胀对利率走向的制约",
+  "source": "陈老师问答",
+  "material_type": "macro_knowledge",
+  "generate_qa": false,
+  "generate_candidate_rules": false,
+  "generate_validation_cards": false,
+  "generate_knowledge_card": true,
+  "generate_observation_card": false,
+  "no_rule_reason": "本文属于宏观理解型材料，讲的是利率走向的制约因素，不是可执行规则。",
+  "reusable_understanding": [
+    "利率不是单纯由国内经济决定，外部约束同样重要",
+    "消费弱 ≠ 一定降息，还要看通胀和汇率"
+  ],
+  "domain_code": "MACRO",
+  "topic_code": "RATE",
+  "tags": ["投资/宏观理解", "投资/利率"],
+  "summary": "消费复苏偏弱叠加输入性通胀压力，使得央行降息空间受限。",
+  "core_conclusion": "消费复苏偏弱 + 输入性通胀制约 = 央行降息空间有限。",
+  "core_logic": [
+    {"title": "消费→加息的传导链", "content": "加息会抑制消费，消费未回暖时加息会压制经济。"},
+    {"title": "输入性通胀→降息的制约链", "content": "降息会推升通胀，输入性通胀压力存在时降息空间受限。"}
+  ],
+  "applicable_scenarios": ["判断利率大方向时", "理解央行降息犹豫的原因时"],
+  "risk_boundaries": ["美联储意外大幅降息", "国内通胀超预期下行"],
+  "my_understanding": "理解利率决策需要同时考虑内部消费和外部通胀两个维度。"
+}
+```
+
+### 关键格式要求
+
+1. **最外层只能有一个 JSON 对象**，不能有多余的逗号、解释文字、Markdown。
+2. **`should_generate_case=false` 时**：
+   - `case` 必须是 `null`
+   - `case_insufficient_reason` 必须是**非空的字符串**，说明为什么不生成案例
+3. **`should_generate_case=true` 时**：
+   - `case` 必须是包含完整案例信息的对象
+   - `case_insufficient_reason` 可以是 `null` 或空字符串
+4. **`material_type=macro_knowledge` 时**：
+   - 必须设置 `no_rule_reason`（说明为什么不生成规则）
+   - 必须设置 `reusable_understanding`（可复用理解列表）
+   - `generate_candidate_rules` 必须是 `false`
+5. **所有字符串必须用双引号**，不能用单引号
+6. **数组和对象的最后一个元素后面不能有逗号**
+
+---
+
 ## 十四、输出前自检
 
 在输出最终 JSON 前，你必须在内部完成以下检查，但不要把检查过程输出：
@@ -1250,9 +1354,9 @@ should_generate_case 默认应为 false。
 15. candidate_rules 是否没有全部无脑归为买入规则。
 16. candidate_rules 是否都可执行。
 17. 每条 candidate_rule 是否都有 trigger_conditions 和 actions。
-18. 是否没有“保证盈利”“没有亏损风险”“一定赚钱”等绝对化表达。
-19. 是否没有“可直接满仓”“满仓买入”等满仓误导表达。
-20. 是否没有“判断正确与错误都有收益”“错了也赚钱”等错误收益表达。
+18. 是否没有"保证盈利""没有亏损风险""一定赚钱"等绝对化表达。
+19. 是否没有"可直接满仓""满仓买入"等满仓误导表达。
+20. 是否没有"判断正确与错误都有收益""错了也赚钱"等错误收益表达。
 21. domain_code 和 topic_code 是否来自白名单。
 22. rule_type 是否来自白名单。
 23. 买入规则的 domain_code 是否优先使用 BUY。
@@ -1262,7 +1366,7 @@ should_generate_case 默认应为 false。
 
 ---
 
-## 十五、最终输出提醒
+## 十六、最终输出提醒
 
 你最终只能输出一个合法 JSON 对象。
 不能输出 Markdown。
