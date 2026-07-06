@@ -1,9 +1,12 @@
 package app
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"investment-kb/internal/ai"
+	"investment-kb/internal/config"
 	"investment-kb/internal/model"
 )
 
@@ -252,6 +255,39 @@ func TestContainsForbiddenPhrases(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestFindBrokenLinksDetectsMissingTarget(t *testing.T) {
+	vault := t.TempDir()
+	existingDir := filepath.Join(vault, "日常随笔", "股市学习", "宽基指数仓位管理系统", "01-源文档", "问答")
+	if err := os.MkdirAll(existingDir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	existingRel := "日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/RAW-OK｜标题.md"
+	if err := os.WriteFile(filepath.Join(vault, filepath.FromSlash(existingRel)), []byte("# RAW-OK｜标题\n"), 0644); err != nil {
+		t.Fatal(err)
+	}
+
+	cfg := &config.Config{ObsidianVaultPath: vault}
+	cfg.Files.RawMaterialIndex = "raw/index.md"
+	cfg.Files.QAIndex = "qa/index.md"
+	cfg.Files.MacroKnowledgeIndex = "knowledge/index.md"
+	cfg.Files.CandidateRuleIndex = "rules/index.md"
+
+	docs := []docRef{{
+		ID:   "QA-TEST",
+		Path: "qa/QA-TEST.md",
+		Body: "存在：[[日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/RAW-OK｜标题|RAW-OK]]\n" +
+			"缺失：[[日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/RAW-MISSING｜标题|RAW-MISSING]]\n",
+	}}
+
+	broken := findBrokenLinks(cfg, docs)
+	if len(broken) != 1 {
+		t.Fatalf("expected 1 broken link, got %d: %#v", len(broken), broken)
+	}
+	if broken[0].Target != "日常随笔/股市学习/宽基指数仓位管理系统/01-源文档/问答/RAW-MISSING｜标题" {
+		t.Fatalf("unexpected broken target: %s", broken[0].Target)
 	}
 }
 

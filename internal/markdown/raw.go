@@ -204,9 +204,6 @@ func isMeaningful(s string) bool {
 func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, rawText string, now time.Time) string {
 	var sb strings.Builder
 
-	// 分隔线
-	sb.WriteString("---\n\n")
-
 	// 标题
 	sb.WriteString(fmt.Sprintf("# %s｜%s\n\n", ids.RawID, result.Title))
 
@@ -215,7 +212,6 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	sb.WriteString(fmt.Sprintf("主题标签：%s  \n", formatTags(result.Tags)))
 	sb.WriteString("整理状态：已整理  \n")
 	sb.WriteString(fmt.Sprintf("生成时间：%s  \n", now.Format("2006-01-02")))
-	sb.WriteString(RenderSourceMetaLines(result.SourceMeta))
 	sb.WriteString("\n")
 
 	// 对应知识卡片/宏观理解卡/市场观察卡（根据 material_type 动态生成）
@@ -228,7 +224,7 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	case "rule_candidate":
 		// 规则型材料：链接到 QA 卡
 		if ids.QAID != "" {
-			sb.WriteString(fmt.Sprintf("对应知识卡片：%s\n\n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
+			sb.WriteString(fmt.Sprintf("对应问答知识卡片：%s\n\n", QaLink(cfg, ids.QAID, result.Title, ids.QAID)))
 		}
 		sb.WriteString("对应候选规则：\n\n")
 		for i, crID := range ids.CandidateIDs {
@@ -244,7 +240,7 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 		if ids.KNOWID != "" {
 			sb.WriteString(fmt.Sprintf("对应宏观理解卡：%s\n\n", KnowLink(cfg, ids.KNOWID, result.Title)))
 		}
-		sb.WriteString("对应知识卡片：不生成\n")
+		sb.WriteString("对应问答知识卡片：不生成（macro_knowledge 不生成 QA）\n")
 		sb.WriteString("对应候选规则：不生成\n")
 		sb.WriteString("对应规则验证卡：不生成\n\n")
 		if result.NoRuleReason != "" {
@@ -255,12 +251,12 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 		if ids.OBSID != "" {
 			sb.WriteString(fmt.Sprintf("对应市场观察卡：[[%s｜%s]]\n\n", ids.OBSID, result.Title))
 		}
-		sb.WriteString("对应知识卡片：不生成\n")
+		sb.WriteString("对应问答知识卡片：不生成\n")
 		sb.WriteString("对应候选规则：不生成\n")
 		sb.WriteString("对应规则验证卡：不生成\n\n")
 	case "archive_only":
 		// 仅存档：标注全部不生成
-		sb.WriteString("对应知识卡片：不生成\n")
+		sb.WriteString("对应问答知识卡片：不生成\n")
 		sb.WriteString("对应候选规则：不生成\n\n")
 	}
 
@@ -283,9 +279,11 @@ func RenderRawMaterial(cfg *config.Config, ids *model.DocumentIDs, result *model
 	}
 
 	// 原文
+	sb.WriteString("---\n\n")
 	sb.WriteString("## 原文\n\n")
 	sb.WriteString(rawText)
 	sb.WriteString("\n\n")
+	sb.WriteString(RenderSourceMetaComment(result.SourceMeta))
 
 	return sb.String()
 }

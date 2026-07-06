@@ -56,6 +56,15 @@ func TestRenderKnowledgeCard(t *testing.T) {
 	if !contains(md, "## 2. 核心结论") {
 		t.Error("未找到核心结论章节")
 	}
+	if !contains(md, "## 4. 账户画像与状态差异") {
+		t.Error("未找到账户画像与状态差异章节")
+	}
+	if !contains(md, "## 5. 行为纠偏点") {
+		t.Error("未找到行为纠偏点章节")
+	}
+	if !contains(md, "### 8.2 潜在但未生成规则") {
+		t.Error("未找到潜在但未生成规则章节")
+	}
 }
 
 func TestRenderCandidateRules(t *testing.T) {
@@ -90,8 +99,8 @@ func TestRenderCandidateRules(t *testing.T) {
 func mockGenerateIDs(result *model.ExtractionResult, now time.Time) (*model.DocumentIDs, error) {
 	// 简化的 ID 生成，用于测试
 	return &model.DocumentIDs{
-		RawID:        "RAW-ACCOUNT-SAFETY-20260609-001",
-		QAID:         "QA-ACCOUNT-SAFETY-20260609-001",
+		RawID: "RAW-ACCOUNT-SAFETY-20260609-001",
+		QAID:  "QA-ACCOUNT-SAFETY-20260609-001",
 		CandidateIDs: []string{
 			"CR-VALUATION-SAFETY-20260609-001",
 			"CR-ACCOUNT-POS-20260609-002",

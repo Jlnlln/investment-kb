@@ -27,3 +27,16 @@ func RenderSourceMetaLines(meta model.SourceMeta) string {
 	}
 	return sb.String()
 }
+
+func RenderSourceMetaComment(meta model.SourceMeta) string {
+	var sb strings.Builder
+	sb.WriteString("<!--\n")
+	sb.WriteString("source_meta:\n")
+	fmt.Fprintf(&sb, "source_file: %s\n", meta.SourceFile)
+	fmt.Fprintf(&sb, "raw_hash: %s\n", meta.RawHash)
+	fmt.Fprintf(&sb, "cleaned_hash: %s\n", meta.CleanedHash)
+	fmt.Fprintf(&sb, "raw_id: %s\n", meta.RawID)
+	fmt.Fprintf(&sb, "material_type: %s\n", meta.MaterialType)
+	sb.WriteString("-->\n")
+	return sb.String()
+}

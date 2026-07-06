@@ -77,14 +77,16 @@ func ScanKnowCards(vaultPath, knowDir string) []knowIndexEntry {
 		if strings.HasPrefix(entry.Name(), "宏观理解卡索引") {
 			continue
 		}
-		// 解析 KNOW-ID｜title.md
-		name := strings.TrimSuffix(entry.Name(), ".md")
-		parts := strings.SplitN(name, "｜", 2)
-		if len(parts) < 2 {
+		// V1.5.1 起文件名只保留 KNOW-ID，标题从正文 H1 读取。
+		knowID := strings.TrimSuffix(entry.Name(), ".md")
+		if !strings.HasPrefix(knowID, "KNOW-") {
 			continue
 		}
-		knowID := parts[0]
-		title := parts[1]
+		data, err := os.ReadFile(filepath.Join(fullDir, entry.Name()))
+		if err != nil {
+			continue
+		}
+		title := titleFromFirstHeading(string(data), knowID)
 
 		// 从 KNOW-ID 解析 layer 和 topic：KNOW-L3-RATE-...
 		idParts := strings.SplitN(knowID, "-", 4)
@@ -145,7 +147,7 @@ func RenderKnowIndex(entries []knowIndexEntry) string {
 			sb.WriteString(fmt.Sprintf("### %s\n\n", getLayerTopicCN(entry.Layer, entry.Topic)))
 		}
 		// 写条目
-		sb.WriteString(fmt.Sprintf("- %s\n", ObsidianFileLink(entry.Path, entry.KNOWID)))
+		sb.WriteString(fmt.Sprintf("- %s\n", ObsidianFileLink(entry.Path, linkAlias(entry.KNOWID, entry.Title))))
 	}
 
 	sb.WriteString("\n")
@@ -194,7 +196,7 @@ func CheckSimilarKnowCards(vaultPath, knowDir string, newKnowID, newTitle, newLa
 		if overlap > 0 && float64(overlap)/float64(maxLen(len(newWords), len(existWords))) > 0.5 {
 			overlapPct := float64(overlap) * 100 / float64(maxLen(len(newWords), len(existWords)))
 			warnings = append(warnings, fmt.Sprintf("疑似重复：%s（标题重叠度 %.0f%%）",
-				ObsidianFileLink(entry.Path, entry.KNOWID), overlapPct))
+				ObsidianFileLink(entry.Path, linkAlias(entry.KNOWID, entry.Title)), overlapPct))
 		}
 	}
 

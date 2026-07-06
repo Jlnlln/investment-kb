@@ -346,13 +346,13 @@ func extractRuleCandidate(opts *ExtractOptions, cfg *config.Config, result *mode
 	// 8. 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
-		return fmt.Errorf("写入原始材料失败: %w", err)
+	if err := writeRawMaterial(cfg, ids.RawID, result.Title, rawMD); err != nil {
+		return err
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
-	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.QA, qaMD, ids.QAID); err != nil {
-		return fmt.Errorf("写入知识卡片失败: %w", err)
+	if err := writeQA(cfg, ids.QAID, result.Title, qaMD); err != nil {
+		return err
 	}
 	fmt.Printf("   ✅ %s\n", ids.QAID)
 
@@ -446,8 +446,8 @@ func extractMacroKnowledge(opts *ExtractOptions, cfg *config.Config, result *mod
 	// 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
-		return fmt.Errorf("写入原始材料失败: %w", err)
+	if err := writeRawMaterial(cfg, ids.RawID, result.Title, rawMD); err != nil {
+		return err
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
@@ -533,8 +533,8 @@ func extractMarketObservation(opts *ExtractOptions, cfg *config.Config, result *
 	// 写入 Obsidian
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
-		return fmt.Errorf("写入原始材料失败: %w", err)
+	if err := writeRawMaterial(cfg, ids.RawID, result.Title, rawMD); err != nil {
+		return err
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
@@ -577,8 +577,8 @@ func extractArchiveOnly(opts *ExtractOptions, cfg *config.Config, result *model.
 	// 写入 Obsidian（仅 RAW）
 	fmt.Printf("📝 正在写入 Obsidian...\n")
 
-	if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, rawMD, ids.RawID); err != nil {
-		return fmt.Errorf("写入原始材料失败: %w", err)
+	if err := writeRawMaterial(cfg, ids.RawID, result.Title, rawMD); err != nil {
+		return err
 	}
 	fmt.Printf("   ✅ %s\n", ids.RawID)
 
@@ -1014,6 +1014,48 @@ func loadExistingCandidateRules(cfg *config.Config) ([]dedup.RuleFingerprint, er
 		return dedup.ParseExistingCRDir(filepath.Join(cfg.ObsidianVaultPath, markdown.GetCandidateRuleDir(cfg)))
 	}
 	return dedup.ParseExistingCRs(filepath.Join(cfg.ObsidianVaultPath, cfg.Files.CandidateRule))
+}
+
+func writeRawMaterial(cfg *config.Config, rawID, title, content string) error {
+	if !markdown.UseStandaloneRawMaterials(cfg) {
+		if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.RawMaterial, content, rawID); err != nil {
+			return fmt.Errorf("写入原始材料失败: %w", err)
+		}
+		return nil
+	}
+	relativePath := markdown.RawMaterialRelativePath(cfg, rawID, title)
+	fullPath := filepath.Join(cfg.ObsidianVaultPath, relativePath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return fmt.Errorf("创建 RAW 目录失败: %w", err)
+	}
+	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("写入 RAW 失败 %s: %w", rawID, err)
+	}
+	if err := markdown.UpdateRawMaterialIndex(cfg); err != nil {
+		return fmt.Errorf("更新原始材料索引失败: %w", err)
+	}
+	return nil
+}
+
+func writeQA(cfg *config.Config, qaID, title, content string) error {
+	if !markdown.UseStandaloneQA(cfg) {
+		if _, err := obsidian.AppendMarkdownIfMissing(cfg.ObsidianVaultPath, cfg.Files.QA, content, qaID); err != nil {
+			return fmt.Errorf("写入知识卡片失败: %w", err)
+		}
+		return nil
+	}
+	relativePath := markdown.QaRelativePath(cfg, qaID, title)
+	fullPath := filepath.Join(cfg.ObsidianVaultPath, relativePath)
+	if err := os.MkdirAll(filepath.Dir(fullPath), 0755); err != nil {
+		return fmt.Errorf("创建 QA 目录失败: %w", err)
+	}
+	if err := os.WriteFile(fullPath, []byte(content), 0644); err != nil {
+		return fmt.Errorf("写入 QA 失败 %s: %w", qaID, err)
+	}
+	if err := markdown.UpdateQaIndex(cfg); err != nil {
+		return fmt.Errorf("更新问答知识卡片索引失败: %w", err)
+	}
+	return nil
 }
 
 func writeCandidateRuleFiles(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, similarData [][]dedup.SimilarRule) error {

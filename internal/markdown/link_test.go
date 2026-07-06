@@ -162,7 +162,7 @@ func TestCandidateRuleStandaloneLink(t *testing.T) {
 	cfg.Files.CandidateRuleIndex = "rules/candidate_rules/index.md"
 
 	got := CandidateRuleLink(cfg, "CR-VALUATION-20260702-001", "VALUATION", "SAFETY", "高概率区间先建底仓", "")
-	want := "[[rules/candidate_rules/CR-VALUATION-20260702-001｜VALUATION-SAFETY｜高概率区间先建底仓|CR-VALUATION-20260702-001]]"
+	want := "[[rules/candidate_rules/CR-VALUATION-20260702-001|CR-VALUATION-20260702-001｜高概率区间先建底仓]]"
 	if got != want {
 		t.Fatalf("CandidateRuleLink() = %s, want %s", got, want)
 	}
@@ -176,18 +176,50 @@ func TestKnowLinkUsesPathAndIDAlias(t *testing.T) {
 	cfg.Files.MacroKnowledgeDir = "knowledge/macro_cards"
 
 	got := KnowLink(cfg, "KNOW-L3-RATE-20260702-001", "消费与输入性通胀对利率走向的制约")
-	want := "[[knowledge/macro_cards/KNOW-L3-RATE-20260702-001｜消费与输入性通胀对利率走向的制约|KNOW-L3-RATE-20260702-001]]"
+	want := "[[knowledge/macro_cards/KNOW-L3-RATE-20260702-001|KNOW-L3-RATE-20260702-001｜消费与输入性通胀对利率走向的制约]]"
 	if got != want {
 		t.Fatalf("KnowLink() = %s, want %s", got, want)
 	}
 }
 
-func TestCandidateRuleFileNameSanitizesWindowsInvalidChars(t *testing.T) {
-	got := CandidateRuleFileName("CR-RISK-20260702-001", "RISK", "PLAN", `买入/卖出:预案? "检查"`)
-	if strings.ContainsAny(got, `\/:*?"<>|`) {
-		t.Fatalf("CandidateRuleFileName contains Windows invalid chars: %s", got)
+func TestRawAndQaLinksUseStandaloneFilesWhenConfigured(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Files.RawMaterialDir = "raw/materials"
+	cfg.Files.RawMaterialIndex = "raw/index.md"
+	cfg.Files.QADir = "qa/cards"
+	cfg.Files.QAIndex = "qa/index.md"
+
+	raw := RawMaterialLink(cfg, "RAW-ACCOUNT-SAFETY-20260703-001", "安全边际", "")
+	wantRaw := "[[raw/materials/RAW-ACCOUNT-SAFETY-20260703-001|RAW-ACCOUNT-SAFETY-20260703-001｜安全边际]]"
+	if raw != wantRaw {
+		t.Fatalf("RawMaterialLink() = %s, want %s", raw, wantRaw)
 	}
-	if !strings.Contains(got, "｜") {
-		t.Fatalf("CandidateRuleFileName should preserve fullwidth separators: %s", got)
+
+	qa := QaLink(cfg, "QA-ACCOUNT-SAFETY-20260703-001", "安全边际", "")
+	wantQA := "[[qa/cards/QA-ACCOUNT-SAFETY-20260703-001|QA-ACCOUNT-SAFETY-20260703-001｜安全边际]]"
+	if qa != wantQA {
+		t.Fatalf("QaLink() = %s, want %s", qa, wantQA)
+	}
+}
+
+func TestValidationCardLinkUsesFullPath(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.Files.ValidationCardDir = "日常随笔/股市学习/宽基指数仓位管理系统/03-规则/规则回溯验证/规则验证卡"
+
+	got := ValidationCardLink(cfg, "CR-VALUATION-20260703-002", "CR-VALUATION-20260703-002｜验证卡")
+	want := "[[日常随笔/股市学习/宽基指数仓位管理系统/03-规则/规则回溯验证/规则验证卡/CR-VALUATION-20260703-002|CR-VALUATION-20260703-002｜验证卡]]"
+	if got != want {
+		t.Fatalf("ValidationCardLink() = %s, want %s", got, want)
+	}
+	if strings.Contains(got, "[[CR-") || strings.Contains(got, "#") {
+		t.Fatalf("validation card link should use full file path without heading anchor: %s", got)
+	}
+}
+
+func TestCandidateRuleFileNameUsesStableIDOnly(t *testing.T) {
+	got := CandidateRuleFileName("CR-RISK-20260702-001", "RISK", "PLAN", `买入/卖出:预案? "检查"`)
+	want := "CR-RISK-20260702-001.md"
+	if got != want {
+		t.Fatalf("CandidateRuleFileName() = %s, want %s", got, want)
 	}
 }

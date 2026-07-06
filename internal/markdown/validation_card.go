@@ -23,17 +23,6 @@ const DefaultValidationCardTemplate = `# 规则验证卡：{{RULE_NAME}}
 > **对应候选规则**: {{SOURCE_CR_LINK}}
 > **来源知识卡片**: {{SOURCE_QA_LINK}}
 > **来源原文**: {{SOURCE_RAW_LINK}}
-> **source_file**: {{SOURCE_FILE}}
-> **raw_hash**: {{RAW_HASH}}
-> **cleaned_hash**: {{CLEANED_HASH}}
-> **raw_id**: {{RAW_ID}}
-> **material_type**: {{MATERIAL_TYPE}}
-
-source_file: {{SOURCE_FILE}}
-raw_hash: {{RAW_HASH}}
-cleaned_hash: {{CLEANED_HASH}}
-raw_id: {{RAW_ID}}
-material_type: {{MATERIAL_TYPE}}
 
 ---
 
@@ -181,8 +170,8 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 		"{{RISK_BOUNDARY}}":           rule.RiskBoundary,
 		"{{QUESTIONS_TO_CONFIRM}}":    joinNumberedList(rule.QuestionsToConfirm),
 		"{{RECOMMENDATION}}":          rule.Recommendation,
-		"{{SOURCE_QA_LINK}}":          ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(qaID, result.Title), qaID),
-		"{{SOURCE_RAW_LINK}}":         ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(rawID, result.Title), rawID),
+		"{{SOURCE_QA_LINK}}":          QaLink(cfg, qaID, result.Title, qaID),
+		"{{SOURCE_RAW_LINK}}":         RawMaterialLink(cfg, rawID, result.Title, rawID),
 		"{{SOURCE_CR_LINK}}":          CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID),
 		"{{APPLICABLE_OBJECTS}}":      joinSimpleList(rule.ApplicableObjects),
 		"{{SOURCE_FILE}}":             result.SourceMeta.SourceFile,
@@ -228,36 +217,41 @@ func fillValidationCardTemplate(content string, cfg *config.Config, crID, qaID, 
 		}
 	}
 	content = strings.Join(lines, "\n")
-	content = ensureValidationCandidateRuleLink(content, cfg, crID, rule)
+	content = ensureValidationSourceLinks(content, cfg, crID, qaID, rawID, result, rule)
 	content = ensureValidationSourceMetadata(content, result.SourceMeta)
 
 	return content
 }
 
-func ensureValidationCandidateRuleLink(content string, cfg *config.Config, crID string, rule model.CandidateRule) string {
-	if strings.Contains(content, "对应候选规则") {
+func ensureValidationSourceLinks(content string, cfg *config.Config, crID, qaID, rawID string, result *model.ExtractionResult, rule model.CandidateRule) string {
+	var missing []string
+	if !strings.Contains(content, "对应候选规则") {
+		missing = append(missing, "> **对应候选规则**: "+CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID))
+	}
+	if !strings.Contains(content, "来源知识卡片") {
+		missing = append(missing, "> **来源知识卡片**: "+QaLink(cfg, qaID, result.Title, qaID))
+	}
+	if !strings.Contains(content, "来源原文") {
+		missing = append(missing, "> **来源原文**: "+RawMaterialLink(cfg, rawID, result.Title, rawID))
+	}
+	if len(missing) == 0 {
 		return content
 	}
-	link := "> **对应候选规则**: " + CandidateRuleLink(cfg, crID, rule.DomainCode, rule.TopicCode, rule.RuleName, crID) + "\n"
-	if idx := strings.Index(content, "\n"); idx >= 0 {
-		return content[:idx+1] + link + content[idx+1:]
-	}
-	return content + "\n" + link
-}
-
-func ensureValidationSourceMetadata(content string, meta model.SourceMeta) string {
-	if strings.Contains(content, "source_file:") && strings.Contains(content, "cleaned_hash:") && strings.Contains(content, "raw_id:") {
-		return content
-	}
-	block := "\nsource_file: " + meta.SourceFile + "  \n" +
-		"raw_hash: " + meta.RawHash + "  \n" +
-		"cleaned_hash: " + meta.CleanedHash + "  \n" +
-		"raw_id: " + meta.RawID + "  \n" +
-		"material_type: " + string(meta.MaterialType) + "  \n"
+	block := strings.Join(missing, "\n") + "\n"
 	if idx := strings.Index(content, "\n"); idx >= 0 {
 		return content[:idx+1] + block + content[idx+1:]
 	}
-	return content + block
+	return content + "\n" + block
+}
+
+func ensureValidationSourceMetadata(content string, meta model.SourceMeta) string {
+	if strings.Contains(content, "source_meta:") && strings.Contains(content, "source_file:") && strings.Contains(content, "cleaned_hash:") && strings.Contains(content, "raw_id:") {
+		return content
+	}
+	if !strings.HasSuffix(content, "\n") {
+		content += "\n"
+	}
+	return content + "\n" + RenderSourceMetaComment(meta)
 }
 
 // joinBulletList 将字符串数组转换为 Markdown 无序列表
@@ -307,5 +301,5 @@ func GetValidationCardPath(cfg *config.Config, crID string) string {
 
 // GetValidationCardLink 生成验证卡 WikiLink
 func GetValidationCardLink(cfg *config.Config, crID string, alias string) string {
-	return ObsidianHeadingLink(GetValidationCardPath(cfg, crID), crID, alias)
+	return ValidationCardLink(cfg, crID, alias)
 }

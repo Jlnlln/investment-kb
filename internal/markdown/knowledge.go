@@ -9,7 +9,7 @@ import (
 )
 
 // RenderKnowCard 渲染宏观理解卡（单文件模式）
-// 每张 KNOW 卡是独立的 .md 文件，拥有完整 frontmatter
+// 每张 KNOW 卡是独立的 .md 文件，元数据使用普通 Markdown 行，避免 Obsidian 将顶部链接放进 Properties 区。
 func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.ExtractionResult, now time.Time) string {
 	var sb strings.Builder
 
@@ -23,33 +23,18 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 		}
 	}
 
-	// YAML frontmatter（每张 KNOW 卡独立拥有，Obsidian 可识别）
-	fmt.Fprintf(&sb, "---\n")
-	fmt.Fprintf(&sb, "uid: %s\n", ids.KNOWID)
-	fmt.Fprintf(&sb, "title: %s\n", result.Title)
-	fmt.Fprintf(&sb, "source: %s\n", result.Source)
-	fmt.Fprintf(&sb, "material_type: macro_knowledge\n")
-	fmt.Fprintf(&sb, "source_file: %s\n", result.SourceMeta.SourceFile)
-	fmt.Fprintf(&sb, "raw_hash: %s\n", result.SourceMeta.RawHash)
-	fmt.Fprintf(&sb, "cleaned_hash: %s\n", result.SourceMeta.CleanedHash)
-	fmt.Fprintf(&sb, "raw_id: %s\n", result.SourceMeta.RawID)
-	fmt.Fprintf(&sb, "layer: %s\n", layer)
-	fmt.Fprintf(&sb, "topic: %s\n", topic)
-	// tags 用 YAML 列表格式，Obsidian 才能识别
-	fmt.Fprintf(&sb, "tags:\n")
-	for _, tag := range result.Tags {
-		fmt.Fprintf(&sb, "  - %s\n", tag)
-	}
-	fmt.Fprintf(&sb, "created: %s\n", now.Format("2006-01-02"))
-	fmt.Fprintf(&sb, "---\n\n")
-
 	// 标题（用｜分隔，与 RAW/CR 格式一致）
 	fmt.Fprintf(&sb, "# %s｜%s\n\n", ids.KNOWID, result.Title)
 
-	// 原始材料链接（RAW 在聚合文件中，需要锚点链接）
-	rawPath := GetRawMaterialPath(cfg)
-	rawHeading := ids.RawID  // Obsidian 中的标题是 "# RAW-ID"
-	fmt.Fprintf(&sb, "原始材料：%s\n\n", ObsidianHeadingLink(rawPath, rawHeading, ids.RawID))
+	fmt.Fprintf(&sb, "uid: %s\n", ids.KNOWID)
+	fmt.Fprintf(&sb, "来源：%s\n", result.Source)
+	fmt.Fprintf(&sb, "主题标签：%s\n", formatTags(result.Tags))
+	fmt.Fprintf(&sb, "整理时间：%s\n", now.Format("2006-01-02"))
+	fmt.Fprintf(&sb, "layer: %s\n", layer)
+	fmt.Fprintf(&sb, "topic: %s\n", topic)
+	fmt.Fprintf(&sb, "\n")
+
+	fmt.Fprintf(&sb, "原始材料：%s\n\n", RawMaterialLink(cfg, ids.RawID, result.Title, ids.RawID))
 
 	// 核心结论
 	fmt.Fprintf(&sb, "## 核心结论\n\n")
@@ -98,6 +83,8 @@ func RenderKnowCard(cfg *config.Config, ids *model.DocumentIDs, result *model.Ex
 		fmt.Fprintf(&sb, "## 不生成规则的原因\n\n")
 		fmt.Fprintf(&sb, "%s\n\n", result.NoRuleReason)
 	}
+
+	fmt.Fprintf(&sb, "%s", RenderSourceMetaComment(result.SourceMeta))
 
 	return sb.String()
 }

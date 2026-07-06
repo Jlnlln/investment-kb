@@ -227,6 +227,54 @@
 
 ---
 
+
+---
+
+## 六点五、行为纠偏型规则识别（rule_candidate 必须检查）
+
+在生成候选规则前，必须额外检查原文是否包含“账户画像 + 行为纠偏 + 反直觉建议”型规则。
+
+请逐项判断：
+
+1. 作者是否针对不同投资者画像给出不同建议？例如：小白、经验者、空仓者、亏损者、盈利者、低成本持仓者、高成本持仓者。
+2. 作者是否指出某类人的问题不在市场，而在交易行为？例如：追涨杀跌、受叙事影响、反向操作、频繁择时。
+3. 作者是否给出反直觉建议？例如：亏损者不要立刻割肉、盈利者不要提前清仓、空仓者不要追高。
+4. 该建议是否主要用于防止错误行为扩大？例如：避免浮亏变真亏、避免高位接盘、避免卖飞、避免照抄他人仓位。
+5. 如果该建议能直接约束买入、卖出、持有、减仓、加仓或暂停操作，则应作为候选规则或潜在候选规则输出。
+
+### 候选规则生成数量约束
+
+每篇问答最多直接生成 1-3 条候选规则。
+
+如果可提炼规则超过 3 条：
+
+- 优先生成最能直接约束实际操作的规则。
+- 其余规则放入 `potential_rules`。
+- 不得为了覆盖所有观点而生成过多 CR。
+
+### 候选规则生成判断标准
+
+只有满足以下至少 3 条，才允许进入 `candidate_rules` 直接生成 CR：
+
+1. 能直接影响买入、卖出、持有、减仓、加仓或暂停操作。
+2. 能防止一个高频错误行为。
+3. 有明确适用对象或账户状态。
+4. 有明确风险边界或不适用场景。
+5. 与已有候选规则不完全重复。
+6. 未来可以通过案例或实盘情境验证。
+
+不满足条件但有价值的内容，必须进入 `potential_rules`，不要强行生成 CR。
+
+### 重点识别示例
+
+如果原文涉及宽基亏损者、盈利者、空仓者等账户状态，必须检查是否存在以下隐性规则：
+
+- 宽基亏损者应减少交易，避免把浮亏变成真亏。
+- 利润垫厚者可以等趋势走完。
+- 不得把主观预判见顶作为大额减仓触发条件。
+
+特别注意：“宽基亏损者减少交易”不是“所有亏损都必须死拿”。必须区分宽基、个股、行业主题、杠杆账户；必须说明适用对象与风险边界。
+
 ## 七、必须输出的 JSON 结构
 
 你必须严格按照以下结构输出。
@@ -255,6 +303,24 @@
 "content": ""
 }
 ],
+"account_profiles": {
+"mentioned_states": [
+{"state": "空仓者", "note": ""},
+{"state": "亏损者", "note": ""},
+{"state": "盈利者", "note": ""},
+{"state": "低成本持仓者", "note": ""},
+{"state": "高成本持仓者", "note": ""},
+{"state": "小白投资者", "note": ""},
+{"state": "经验投资者", "note": ""}
+],
+"recommendation_diffs": [],
+"reason": ""
+},
+"behavior_correction": {
+"wrong_behaviors": [],
+"behavior_constraints": [],
+"counterintuitive_advice": ""
+},
 "applicable_scenarios": [],
 "risk_boundaries": [],
 "extractable_rules": [
@@ -264,6 +330,17 @@
 "domain_code": "",
 "topic_code": "",
 "summary": ""
+}
+],
+"potential_rules": [
+{
+"rule_draft": "",
+"domain_code": "",
+"original_evidence": "",
+"applicable_objects": [],
+"prevented_error": "",
+"should_generate_cr": "",
+"no_generate_reason": ""
 }
 ],
 "should_generate_case": false,
@@ -1254,12 +1331,41 @@ should_generate_case 默认应为 false。
     {"title": "账户状态决定仓位力度", "content": "低成本持仓者与空仓者不能使用同一仓位计划。"},
     {"title": "空仓者需制定容错计划", "content": "在高概率区间不能因追求极致安全边际而拒绝建仓。"}
   ],
+  "account_profiles": {
+    "mentioned_states": [
+      {"state": "空仓者", "note": "缺乏安全垫，不能照搬低成本持仓者计划。"},
+      {"state": "亏损者", "note": "原文未明确涉及"},
+      {"state": "盈利者", "note": "原文未明确涉及"},
+      {"state": "低成本持仓者", "note": "有利润垫和容错空间，但仍需结合预案。"},
+      {"state": "高成本持仓者", "note": "原文未明确涉及"},
+      {"state": "小白投资者", "note": "需要容错计划防止恐惧或追高。"},
+      {"state": "经验投资者", "note": "原文未明确涉及"}
+    ],
+    "recommendation_diffs": ["空仓者应分批建仓并保留容错资金", "低成本持仓者可以依靠利润垫承受更大波动"],
+    "reason": "同一市场位置下，不同账户状态的持仓成本、现金比例和容错空间不同，因此最优动作不同。"
+  },
+  "behavior_correction": {
+    "wrong_behaviors": ["照抄他人仓位", "因为踏空焦虑追高", "缺少预案仍大额操作"],
+    "behavior_constraints": ["先检查账户状态再操作", "用分批计划替代一次性押注", "买入前写出上涨和下跌预案"],
+    "counterintuitive_advice": "空仓者即使看到高概率区间，也不应照搬低成本持仓者的高仓位计划。"
+  },
   "applicable_scenarios": ["宽基指数进入高概率买入区间", "空仓者制定建仓计划时"],
   "risk_boundaries": ["个股、主题基金、缺乏历史数据的资产", "账户触发 hard_block 时不得加仓"],
   "extractable_rules": [
     {"rule_type": "买入规则", "rule_name": "高概率区间先建底仓", "summary": "在高概率区间建立第一笔底仓。"}
   ],
-  "should_generate_case": false,
+  "potential_rules": [
+{
+"rule_draft": "",
+"domain_code": "",
+"original_evidence": "",
+"applicable_objects": [],
+"prevented_error": "",
+"should_generate_cr": "",
+"no_generate_reason": ""
+}
+],
+"should_generate_case": false,
   "case": null,
   "case_insufficient_reason": "原文仅提及标普回撤 example，但缺乏具体时间、点位、完整后续走势及复盘结果。",
   "candidate_rules": [

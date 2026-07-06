@@ -19,8 +19,8 @@ func RenderMarketCase(cfg *config.Config, ids *model.DocumentIDs, result *model.
 	sb.WriteString(fmt.Sprintf("# %s｜%s\n\n", ids.CaseID, c.CaseName))
 
 	// 元数据
-	sb.WriteString(fmt.Sprintf("来源材料：%s\n", ObsidianHeadingLink(GetRawMaterialPath(cfg), JoinHeading(ids.RawID, result.Title), JoinHeading(ids.RawID, result.Title))))
-	sb.WriteString(fmt.Sprintf("关联知识卡片：%s\n", ObsidianHeadingLink(GetQaPath(cfg), JoinHeading(ids.QAID, result.Title), JoinHeading(ids.QAID, result.Title))))
+	sb.WriteString(fmt.Sprintf("来源材料：%s\n", RawMaterialLink(cfg, ids.RawID, result.Title, ids.RawID)))
+	sb.WriteString(fmt.Sprintf("关联知识卡片：%s\n", QaLink(cfg, ids.QAID, result.Title, ids.QAID)))
 	sb.WriteString(fmt.Sprintf("主题标签：%s\n\n", formatTags([]string{
 		c.DomainCode, c.TopicCode,
 	})))

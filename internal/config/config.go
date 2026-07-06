@@ -18,7 +18,12 @@ type Config struct {
 // Files 文件路径配置
 type Files struct {
 	RawMaterial            string `yaml:"raw_material"`
+	RawMaterialDir         string `yaml:"raw_material_dir"`
+	RawMaterialIndex       string `yaml:"raw_material_index"`
+	RawInputInboxDir       string `yaml:"raw_input_inbox_dir"`
 	QA                     string `yaml:"qa"`
+	QADir                  string `yaml:"qa_dir"`
+	QAIndex                string `yaml:"qa_index"`
 	MarketCase             string `yaml:"market_case"`
 	CandidateRule          string `yaml:"candidate_rule"`
 	CandidateRuleDir       string `yaml:"candidate_rule_dir"`

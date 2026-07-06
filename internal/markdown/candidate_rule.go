@@ -43,9 +43,6 @@ func RenderCandidateRuleFile(cfg *config.Config, ids *model.DocumentIDs, result 
 func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, result *model.ExtractionResult, ids *model.DocumentIDs, rule model.CandidateRule, similarRules []dedup.SimilarRule) string {
 	var sb strings.Builder
 
-	// 分隔线
-	sb.WriteString("---\n\n")
-
 	// 标题：CR-日期-序数｜DOMAIN-TOPIC｜规则名称
 	shortCode := rule.DomainCode + "-" + rule.TopicCode
 	sb.WriteString(fmt.Sprintf("# %s｜%s｜%s\n\n", crID, shortCode, rule.RuleName))
@@ -53,9 +50,8 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 	// 元数据
 	sb.WriteString("状态：候选  \n")
 	sb.WriteString("验证状态：待验证  \n")
-	sb.WriteString(fmt.Sprintf("规则验证卡：%s  \n", GetValidationCardLink(cfg, crID, crID)))
+	sb.WriteString(fmt.Sprintf("规则验证卡：%s  \n", GetValidationCardLink(cfg, crID, crID+"｜验证卡")))
 	sb.WriteString("是否可转正式：否  \n")
-	sb.WriteString(RenderSourceMetaLines(result.SourceMeta))
 
 	// 领域信息（显示原始和映射）
 	mappedDomain := idgen.MapCRDomain(rule.DomainCode)
@@ -66,8 +62,8 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 		sb.WriteString(fmt.Sprintf("领域分类：%s  \n", rule.DomainCode))
 	}
 
-	sb.WriteString(fmt.Sprintf("来源知识卡片：%s  \n", ObsidianHeadingLink(GetQaPath(cfg), ids.QAID, ids.QAID)))
-	sb.WriteString(fmt.Sprintf("来源原文：%s  \n", ObsidianHeadingLink(GetRawMaterialPath(cfg), ids.RawID, ids.RawID)))
+	sb.WriteString(fmt.Sprintf("来源知识卡片：%s  \n", QaLink(cfg, ids.QAID, result.Title, ids.QAID)))
+	sb.WriteString(fmt.Sprintf("来源原文：%s  \n", RawMaterialLink(cfg, ids.RawID, result.Title, ids.RawID)))
 
 	caseText := getCaseText(ids, result)
 	if caseText == "暂无" {
@@ -152,6 +148,8 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 		sb.WriteString("相似候选规则：暂无\n\n")
 	}
 
+	sb.WriteString(RenderSourceMetaComment(result.SourceMeta))
+
 	return sb.String()
 }
 
@@ -201,7 +199,7 @@ func UpdateCandidateRuleIndex(cfg *config.Config) error {
 			ID:     id,
 			Title:  title,
 			Domain: domain,
-			Link:   ObsidianFileLink(filepath.Join(GetCandidateRuleDir(cfg), entry.Name()), id),
+			Link:   ObsidianFileLink(filepath.Join(GetCandidateRuleDir(cfg), entry.Name()), linkAlias(id, candidateRuleNameFromTitle(title))),
 		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].ID < items[j].ID })
@@ -228,7 +226,7 @@ func UpdateCandidateRuleIndex(cfg *config.Config) error {
 			sb.WriteString(fmt.Sprintf("- %s\n", it.Link))
 			sb.WriteString("  - 状态：候选\n")
 			sb.WriteString("  - 验证状态：待验证\n")
-			sb.WriteString(fmt.Sprintf("  - 验证卡：[[%s]]\n", it.ID))
+			sb.WriteString(fmt.Sprintf("  - 验证卡：%s\n", ValidationCardLink(cfg, it.ID, it.ID+"｜验证卡")))
 		}
 		sb.WriteString("\n")
 	}
@@ -241,9 +239,9 @@ func UpdateCandidateRuleIndex(cfg *config.Config) error {
 	}
 	sb.WriteString("\n### 待合并\n\n### 已废弃\n\n")
 	sb.WriteString("---\n\n")
-	sb.WriteString("## 最近新增\n\n")
-	for i := len(items) - 1; i >= 0 && len(items)-i <= 10; i-- {
-		sb.WriteString(fmt.Sprintf("- %s\n", items[i].Link))
+	sb.WriteString("## 全部候选规则\n\n")
+	for _, it := range items {
+		sb.WriteString(fmt.Sprintf("- %s\n", it.Link))
 	}
 
 	indexPath := filepath.Join(cfg.ObsidianVaultPath, GetCandidateRuleIndexPath(cfg))
@@ -278,6 +276,14 @@ func candidateDomainFromID(id string) string {
 		return parts[1]
 	}
 	return "UNKNOWN"
+}
+
+func candidateRuleNameFromTitle(title string) string {
+	parts := strings.Split(title, "｜")
+	if len(parts) == 0 {
+		return title
+	}
+	return strings.TrimSpace(parts[len(parts)-1])
 }
 
 func containsCandidateIndexDomain(items []string, target string) bool {
