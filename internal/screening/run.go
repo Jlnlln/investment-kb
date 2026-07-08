@@ -36,6 +36,10 @@ func Run(opts Options) error {
 	if err != nil {
 		return err
 	}
+	filledDecisions, err := SelectDecisions(all, "")
+	if err != nil {
+		return err
+	}
 	decisions, err := SelectDecisions(all, opts.ID)
 	if err != nil {
 		return err
@@ -51,7 +55,7 @@ func Run(opts Options) error {
 		PrintDryRun(paths, opts.ID, decisions)
 		return nil
 	}
-	return apply(paths, decisions, date)
+	return apply(paths, decisions, filledDecisions, date)
 }
 
 func InitDecisions(paths Paths) error {
@@ -103,14 +107,20 @@ func PrintDryRun(paths Paths, id string, decisions map[string]Decision) {
 		fmt.Println("  - update CR front fields")
 		fmt.Println("  - append/update 第一轮筛选结论")
 		fmt.Println("  - update 候选规则索引 entry")
+		for _, field := range ScreeningFrontFields(d) {
+			fmt.Printf("[FIELD] %s：%s\n", field.Key, field.Value)
+		}
 		fmt.Printf("\n[CHECK] class = %s\n", ClassLabel(d.Class))
+		if strings.TrimSpace(d.MergeTarget) != "" {
+			fmt.Printf("[CHECK] merge_target = %s\n", strings.TrimSpace(d.MergeTarget))
+		}
 		fmt.Println("[CHECK] validation_status remains 待验证")
 		fmt.Println("[CHECK] can_promote_formal remains 否")
 		fmt.Println("[CHECK] formal rule generation disabled")
 	}
 }
 
-func apply(paths Paths, decisions map[string]Decision, date string) error {
+func apply(paths Paths, decisions map[string]Decision, allDecisions map[string]Decision, date string) error {
 	fmt.Printf("[APPLY] kb-root: %s\n", paths.KBRoot)
 	indexPath, err := paths.IndexPath()
 	if err != nil {
@@ -140,7 +150,8 @@ func apply(paths Paths, decisions map[string]Decision, date string) error {
 	if err != nil {
 		return err
 	}
-	indexContent := string(indexData)
+	indexContent := removeQueueSection(string(indexData))
+	indexContent = EnsureIndexEntries(paths, indexContent)
 	for _, id := range SortedIDs(decisions) {
 		crPath, _ := paths.CRPath(id)
 		data, err := os.ReadFile(crPath)
@@ -151,8 +162,10 @@ func apply(paths Paths, decisions map[string]Decision, date string) error {
 		if err != nil {
 			return fmt.Errorf("[FAIL] %w; backup: %s", err, backupRoot)
 		}
-		if err := os.WriteFile(crPath, []byte(updated), 0644); err != nil {
-			return fmt.Errorf("[FAIL] 写入 CR 失败: %w; backup: %s", err, backupRoot)
+		if updated != string(data) {
+			if err := os.WriteFile(crPath, []byte(updated), 0644); err != nil {
+				return fmt.Errorf("[FAIL] 写入 CR 失败: %w; backup: %s", err, backupRoot)
+			}
 		}
 		fmt.Printf("\n[UPDATE] %s\n", filepath.Base(crPath))
 		if result.FrontFieldsUpdated {
@@ -169,6 +182,11 @@ func apply(paths Paths, decisions map[string]Decision, date string) error {
 		if changed {
 			fmt.Println("  - index entry planned")
 		}
+	}
+	var queueChanged bool
+	indexContent, queueChanged = UpdateQueueSectionWithItems(indexContent, CandidateRuleItems(paths, indexContent), allDecisions)
+	if queueChanged {
+		fmt.Println("  - current processing queue planned")
 	}
 	if err := os.WriteFile(indexPath, []byte(indexContent), 0644); err != nil {
 		return fmt.Errorf("[FAIL] 写入索引失败: %w; backup: %s", err, backupRoot)
@@ -202,6 +220,10 @@ func renderEmptyDecisions(index string) string {
 	for _, id := range ids {
 		sb.WriteString(id + ":\n")
 		sb.WriteString("  class: \n")
+		sb.WriteString("  batch: \n")
+		sb.WriteString("  queue: \n")
+		sb.WriteString("  integration_status: \n")
+		sb.WriteString("  formalization_status: \n")
 		sb.WriteString("  position: \n")
 		sb.WriteString("  action: \n")
 		sb.WriteString("  merge_target: \n")

@@ -41,22 +41,20 @@ func updateFrontFields(content string, d Decision) (string, bool) {
 		}
 	}
 
-	screeningLine := "第一轮筛选：" + ClassLabel(d.Class) + "  "
-	actionLine := "处理建议：" + TopAction(d) + "  "
-	mergeLine := "合并观察：" + MergeObservation(d) + "  "
-	values := map[string]string{
-		"第一轮筛选": screeningLine,
-		"处理建议":  actionLine,
-		"合并观察":  mergeLine,
+	values := make(map[string]string)
+	var wantOrder []string
+	for _, field := range ScreeningFrontFields(d) {
+		values[field.Key] = field.Key + "：" + field.Value + "  "
+		wantOrder = append(wantOrder, field.Key)
 	}
-	wantOrder := []string{"第一轮筛选", "处理建议", "合并观察"}
+	legacyKeys := screeningFrontFieldKeys()
 
 	var block []string
 	insertAt := end
 	for i := 0; i < end; i++ {
 		trimmed := strings.TrimSpace(lines[i])
 		key := metaKey(trimmed)
-		if _, ok := values[key]; ok {
+		if legacyKeys[key] {
 			continue
 		}
 		block = append(block, lines[i])
@@ -124,6 +122,20 @@ func metaKey(line string) string {
 		}
 	}
 	return ""
+}
+
+func screeningFrontFieldKeys() map[string]bool {
+	return map[string]bool{
+		"第一轮筛选":  true,
+		"筛选批次":   true,
+		"当前处理队列": true,
+		"处理建议":   true,
+		"合并观察":   true,
+		"合并去向":   true,
+		"联动观察":   true,
+		"整合状态":   true,
+		"正式化状态":  true,
+	}
 }
 
 func ExtractSourceMeta(content string) string {

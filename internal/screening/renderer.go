@@ -13,6 +13,9 @@ func RenderConclusion(d Decision, date string) string {
 	sb.WriteString(fmt.Sprintf("- 筛选分类：%s\n", ClassLabel(d.Class)))
 	sb.WriteString(fmt.Sprintf("- 处理动作：%s\n", valueOrDefault(d.Action, "暂未填写")))
 	sb.WriteString(fmt.Sprintf("- 合并去向：%s\n", mergeTargetText(d)))
+	if text := LinkWatchText(d); text != "" {
+		sb.WriteString(fmt.Sprintf("- 联动观察：%s\n", text))
+	}
 	sb.WriteString(fmt.Sprintf("- 规则定位：%s\n\n", valueOrDefault(d.Position, "暂未填写")))
 
 	sb.WriteString("### 判断理由\n\n")

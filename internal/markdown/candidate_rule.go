@@ -52,6 +52,11 @@ func renderSingleCandidateRule(cfg *config.Config, crID, qaID, rawID string, res
 	sb.WriteString("验证状态：待验证  \n")
 	sb.WriteString(fmt.Sprintf("规则验证卡：%s  \n", GetValidationCardLink(cfg, crID, crID+"｜验证卡")))
 	sb.WriteString("是否可转正式：否  \n")
+	if batch := strings.TrimSpace(os.Getenv("KB_SCREENING_BATCH")); batch != "" {
+		sb.WriteString(fmt.Sprintf("筛选批次：%s  \n", batch))
+	}
+	sb.WriteString("第一轮筛选：未筛选  \n")
+	sb.WriteString("当前处理队列：新增待筛选  \n")
 
 	// 领域信息（显示原始和映射）
 	mappedDomain := idgen.MapCRDomain(rule.DomainCode)

@@ -12,6 +12,10 @@ import (
 
 type Decision struct {
 	Class                string   `yaml:"class"`
+	Batch                string   `yaml:"batch"`
+	Queue                string   `yaml:"queue"`
+	IntegrationStatus    string   `yaml:"integration_status"`
+	FormalizationStatus  string   `yaml:"formalization_status"`
 	Position             string   `yaml:"position"`
 	Action               string   `yaml:"action"`
 	MergeTarget          string   `yaml:"merge_target"`
@@ -43,7 +47,17 @@ func LoadDecisions(path string) (map[string]Decision, error) {
 
 func SelectDecisions(all map[string]Decision, id string) (map[string]Decision, error) {
 	if strings.TrimSpace(id) == "" {
-		return all, nil
+		selected := make(map[string]Decision)
+		for crID, decision := range all {
+			if strings.TrimSpace(decision.Class) == "" {
+				continue
+			}
+			selected[crID] = decision
+		}
+		if len(selected) == 0 {
+			return nil, fmt.Errorf("decisions 中没有已填写 class 的筛选条目")
+		}
+		return selected, nil
 	}
 	decision, ok := all[id]
 	if !ok {
@@ -110,9 +124,30 @@ func ClassLabel(class string) string {
 	}
 }
 
+func QueueLabel(d Decision) string {
+	if strings.TrimSpace(d.Queue) != "" {
+		return strings.TrimSpace(d.Queue)
+	}
+	switch strings.TrimSpace(d.Class) {
+	case "A":
+		return "A｜待验证"
+	case "B":
+		return "B｜观察中"
+	case "C":
+		return "C｜待吸收"
+	case "D":
+		return "D｜已废弃"
+	default:
+		return "新增待筛选"
+	}
+}
+
 func TopAction(d Decision) string {
 	action := strings.TrimSpace(d.Action)
 	position := strings.TrimSpace(d.Position)
+	if d.Class == "C" || d.Class == "D" {
+		return valueOrDefault(action, position)
+	}
 	if idx := strings.Index(action, "，"); idx > 0 {
 		action = strings.TrimSpace(action[:idx])
 	}
@@ -125,25 +160,50 @@ func TopAction(d Decision) string {
 	return action + "，" + position
 }
 
-func MergeObservation(d Decision) string {
-	watchIDs := make([]string, 0, len(d.MergeWatch))
+type FrontField struct {
+	Key   string
+	Value string
+}
+
+func ScreeningFrontFields(d Decision) []FrontField {
+	fields := []FrontField{
+		{Key: "第一轮筛选", Value: ClassLabel(d.Class)},
+	}
+	if strings.TrimSpace(d.Batch) != "" {
+		fields = append(fields, FrontField{Key: "筛选批次", Value: strings.TrimSpace(d.Batch)})
+	}
+	fields = append(fields, FrontField{Key: "当前处理队列", Value: QueueLabel(d)})
+	if strings.TrimSpace(TopAction(d)) != "" {
+		fields = append(fields, FrontField{Key: "处理建议", Value: TopAction(d)})
+	}
+	if d.Class == "C" && strings.TrimSpace(d.MergeTarget) != "" {
+		fields = append(fields, FrontField{Key: "合并去向", Value: strings.TrimSpace(d.MergeTarget)})
+	}
+	if text := LinkWatchText(d); text != "" {
+		fields = append(fields, FrontField{Key: "联动观察", Value: text})
+	}
+	if strings.TrimSpace(d.IntegrationStatus) != "" {
+		fields = append(fields, FrontField{Key: "整合状态", Value: strings.TrimSpace(d.IntegrationStatus)})
+	}
+	if strings.TrimSpace(d.FormalizationStatus) != "" {
+		fields = append(fields, FrontField{Key: "正式化状态", Value: strings.TrimSpace(d.FormalizationStatus)})
+	}
+	return fields
+}
+
+func LinkWatchText(d Decision) string {
+	watches := make([]string, 0, len(d.MergeWatch))
 	for _, item := range d.MergeWatch {
 		item = strings.TrimSpace(item)
 		if item == "" {
 			continue
 		}
-		if idx := strings.Index(item, "｜"); idx >= 0 {
-			item = item[:idx]
-		}
-		watchIDs = append(watchIDs, item)
+		watches = append(watches, item)
 	}
-	if len(watchIDs) > 0 {
-		return "后续可能吸收 " + strings.Join(watchIDs, "、")
+	if len(watches) == 0 {
+		return ""
 	}
-	if strings.TrimSpace(d.MergeTarget) != "" {
-		return "合并至 " + strings.TrimSpace(d.MergeTarget)
-	}
-	return "暂不合并"
+	return "后续与 " + strings.Join(watches, "、") + " 联动验证"
 }
 
 func nonEmptyList(items []string) []string {
