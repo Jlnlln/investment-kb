@@ -1,0 +1,108 @@
+- id: scenario_1
+  name: 空仓 + 现金充足 + 预案完整
+  input:
+    action_type: buy
+    primary_position_state: empty_position
+    account_flags: []
+    reserve_cash_confirmed: true
+    total_position_pct: 0
+    investable_cash_cny: 100000
+    upside_plan_ready: true
+    downside_plan_ready: true
+  expected:
+    decision: limit
+    suggested_action: allow_small_buy
+    reason_codes:
+      - account_state_allows_small_buy
+    human_review_required: false
+  note: 空仓账户可以建立小底仓，但不得跳过账户状态检查直接重仓。
+
+- id: scenario_2
+  name: 空仓 + 现金充足 + 没有预案
+  input:
+    action_type: buy
+    primary_position_state: empty_position
+    account_flags: []
+    reserve_cash_confirmed: true
+    total_position_pct: 0
+    upside_plan_ready: false
+    downside_plan_ready: false
+  expected:
+    decision: block
+    suggested_action: review_plan
+    reason_codes:
+      - plan_missing
+    human_review_required: true
+  note: 没有上涨 / 下跌预案时，买入动作被阻断，下一步是补全预案。
+
+- id: scenario_3
+  name: 高仓 + 想继续加仓
+  input:
+    action_type: add
+    primary_position_state: high_position
+    account_flags: []
+    reserve_cash_confirmed: true
+    total_position_pct: 75
+    planned_buy_pct: 10
+    upside_plan_ready: true
+    downside_plan_ready: true
+    fomo_triggered: true
+  expected:
+    decision: block
+    suggested_action: block_add
+    reason_codes:
+      - fomo_with_high_position
+    human_review_required: false
+  note: 高仓位且由踏空焦虑驱动时，阻断继续加仓。
+
+- id: scenario_4
+  name: 低成本持仓 + 利润垫厚 + 主观猜顶想减仓
+  input:
+    action_type: reduce
+    primary_position_state: normal_position
+    account_flags:
+      - profit_cushion_thick
+    profit_cushion_pct: 35
+    panic_triggered: false
+    exit_plan_ready: true
+  expected:
+    decision: review
+    suggested_action: hold_no_add
+    reason_codes:
+      - profit_cushion_subjective_reduce
+    human_review_required: true
+  note: ACCOUNT 规则不直接判断趋势是否破位，应转交 RISK / VALUATION 规则。
+
+- id: scenario_5
+  name: 仓位超限 + 想继续加仓
+  input:
+    action_type: add
+    primary_position_state: full_position
+    account_flags: []
+    reserve_cash_confirmed: true
+    total_position_pct: 85
+    planned_buy_pct: 5
+  expected:
+    decision: block
+    suggested_action: review_reduce
+    reason_codes:
+      - total_position_exceeds_max
+    human_review_required: true
+  note: P0 阶段不自动计算 reduce_to_limit 的具体减仓比例，优先输出 review_reduce。
+
+- id: scenario_6
+  name: 生活备用金未确认 + 想买入
+  input:
+    action_type: buy
+    primary_position_state: empty_position
+    account_flags:
+      - reserve_unconfirmed
+    reserve_cash_confirmed: false
+    planned_buy_pct: 10
+  expected:
+    decision: block
+    suggested_action: review_cash
+    reason_codes:
+      - reserve_cash_unconfirmed
+    human_review_required: true
+  note: 生活备用金未确认时，应先确认现金安全边界，再考虑买入。

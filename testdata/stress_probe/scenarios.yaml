@@ -1,0 +1,116 @@
+- id: scenario_1
+  name: 重仓意图 + 压力测试通过
+  input:
+    action_type: add
+    is_heavy_position_intent: true
+    extreme_drawdown_plan_ready: true
+    total_position_pct: 60
+    planned_buy_pct: 5
+    stress_drawdown_pct: 30
+    stress_loss_cny: 20000
+    stress_loss_pct: 8
+    max_loss_tolerance_cny: 50000
+    max_loss_tolerance_pct: 15
+    cash_after_stress_cny: 120000
+    min_cash_required_cny: 80000
+    reserve_cash_confirmed: true
+  expected:
+    decision: allow
+    suggested_action: allow_with_stress_passed
+    reason_codes:
+      - stress_test_passed
+    human_review_required: false
+  note: 极限下跌预案存在，亏损金额、亏损比例和现金安全均通过压力测试。
+
+- id: scenario_2
+  name: 重仓意图 + 没有极限下跌预案
+  input:
+    action_type: add
+    is_heavy_position_intent: true
+    extreme_drawdown_plan_ready: false
+  expected:
+    decision: block
+    suggested_action: review_stress_plan
+    reason_codes:
+      - stress_plan_missing
+      - heavy_position_requires_stress_test
+    human_review_required: true
+  note: 重仓意图必须先完成极限下跌压力测试预案。
+
+- id: scenario_3
+  name: 压力测试亏损金额超过最大承受金额
+  input:
+    action_type: add
+    is_heavy_position_intent: true
+    extreme_drawdown_plan_ready: true
+    stress_loss_cny: 60000
+    max_loss_tolerance_cny: 50000
+    stress_loss_pct: 12
+    max_loss_tolerance_pct: 15
+    reserve_cash_confirmed: true
+  expected:
+    decision: block
+    suggested_action: reduce_planned_buy_pct
+    reason_codes:
+      - stress_loss_exceeds_tolerance
+    human_review_required: true
+  note: 压力测试亏损金额已经超过最大可承受亏损金额。
+
+- id: scenario_4
+  name: 压力测试亏损比例超过最大承受比例
+  input:
+    action_type: buy
+    is_chasing_high: true
+    extreme_drawdown_plan_ready: true
+    stress_loss_cny: 30000
+    max_loss_tolerance_cny: 50000
+    stress_loss_pct: 18
+    max_loss_tolerance_pct: 15
+    reserve_cash_confirmed: true
+  expected:
+    decision: block
+    suggested_action: reduce_planned_buy_pct
+    reason_codes:
+      - stress_loss_exceeds_tolerance
+    human_review_required: true
+  note: 压力测试亏损比例已经超过最大可承受亏损比例。
+
+- id: scenario_5
+  name: 压力测试后现金低于最低要求
+  input:
+    action_type: add
+    is_heavy_position_intent: true
+    extreme_drawdown_plan_ready: true
+    stress_loss_cny: 20000
+    max_loss_tolerance_cny: 50000
+    stress_loss_pct: 8
+    max_loss_tolerance_pct: 15
+    cash_after_stress_cny: 50000
+    min_cash_required_cny: 80000
+    reserve_cash_confirmed: true
+  expected:
+    decision: block
+    suggested_action: review_cash_safety
+    reason_codes:
+      - cash_after_stress_below_min
+    human_review_required: true
+  note: 压力测试后现金低于最低现金安全要求。
+
+- id: scenario_6
+  name: 压力测试亏损接近承受上限
+  input:
+    action_type: add
+    is_heavy_position_intent: true
+    extreme_drawdown_plan_ready: true
+    stress_loss_cny: 42000
+    max_loss_tolerance_cny: 50000
+    stress_loss_pct: 12
+    max_loss_tolerance_pct: 15
+    reserve_cash_confirmed: true
+  expected:
+    decision: review
+    suggested_action: review_stress_plan
+    reason_codes:
+      - stress_loss_near_tolerance
+    human_review_required: true
+  note: 42000 / 50000 = 84%，超过 near_tolerance_threshold_pct = 80%，但未超过最大承受金额。

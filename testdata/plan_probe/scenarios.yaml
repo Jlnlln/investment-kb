@@ -1,0 +1,102 @@
+- id: scenario_1
+  name: 买入前预案完整
+  input:
+    action_type: buy
+    upside_plan_ready: true
+    downside_plan_ready: true
+    exit_plan_ready: true
+    exit_condition_defined: true
+    max_loss_defined: true
+    risk_exposure_known: true
+    plan_locked_before_action: true
+  expected:
+    decision: allow
+    suggested_action: allow_with_plan
+    reason_codes:
+      - plan_complete
+    human_review_required: false
+  note: 上涨、下跌、退出条件、最大亏损和风险敞口均已在买入前定义。
+
+- id: scenario_2
+  name: 买入前没有下跌预案
+  input:
+    action_type: buy
+    upside_plan_ready: true
+    downside_plan_ready: false
+    exit_plan_ready: true
+    plan_locked_before_action: true
+  expected:
+    decision: block
+    suggested_action: require_downside_plan
+    reason_codes:
+      - downside_plan_missing
+    human_review_required: true
+  note: buy 前缺少下跌预案，必须先补齐 downside_plan。
+
+- id: scenario_3
+  name: 追高买入但没有退出条件
+  input:
+    action_type: buy
+    is_chasing_high: true
+    exit_plan_ready: false
+    exit_condition_defined: false
+    max_loss_defined: false
+    risk_exposure_known: false
+    plan_locked_before_action: true
+  expected:
+    decision: block
+    suggested_action: require_exit_plan
+    reason_codes:
+      - exit_plan_missing
+      - exit_condition_missing
+      - max_loss_missing
+      - risk_exposure_unknown
+      - chasing_high_requires_exit_plan
+    human_review_required: true
+  note: P0 阶段追高场景缺少退出条件、最大亏损和风险敞口时直接阻断。
+
+- id: scenario_4
+  name: 准备重仓但没有极限下跌预案
+  input:
+    action_type: add
+    is_heavy_position_intent: true
+    extreme_drawdown_plan_ready: false
+    plan_locked_before_action: true
+  expected:
+    decision: block
+    suggested_action: require_extreme_drawdown_plan
+    reason_codes:
+      - extreme_drawdown_plan_missing
+      - heavy_position_requires_extreme_plan
+    human_review_required: true
+  note: 重仓意图必须先检查极限下跌预案。
+
+- id: scenario_5
+  name: 买入后想临时放宽退出条件
+  input:
+    action_type: hold
+    plan_locked_before_action: true
+    plan_changed_after_action: true
+    emotional_override_detected: true
+  expected:
+    decision: block
+    suggested_action: reject_emotional_plan_change
+    reason_codes:
+      - emotional_plan_change_detected
+    human_review_required: false
+  note: 操作后不得因情绪临时放宽或取消退出条件。
+
+- id: scenario_6
+  name: 减仓前没有退出规则触发，只是主观害怕
+  input:
+    action_type: reduce
+    exit_plan_ready: true
+    exit_condition_defined: true
+    emotional_override_detected: true
+  expected:
+    decision: review
+    suggested_action: review_exit_condition
+    reason_codes:
+      - emotional_plan_change_detected
+    human_review_required: true
+  note: plan_gate 只要求复核退出条件，不判断趋势破位或市场见顶。

@@ -17,5 +17,12 @@ data/error_outputs/
 *.bak
 *.tmp*
 
+# Probe 生成产物（运行报告由 probe 写入 Obsidian vault，不入仓库）
+05-运行报告/
+
+# 沙箱 / 抽取临时状态
+sandbox/
+data/sandbox_extract_state_backup_*/
+
 # 示例输入数据（用户自行维护）
 examples/raw_qa.txt

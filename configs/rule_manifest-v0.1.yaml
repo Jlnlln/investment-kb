@@ -1,0 +1,28 @@
+formal_rules:
+  - rule_id: FORMAL-ACCOUNT-001
+    rule_version: v0.1
+    rule_status: draft
+    gate_function: account_gate
+    parameter_set_id: account_params_v0.1
+    testset_id: account_gate_testset_v0.1
+    report: 05-运行报告/P0-Account-Probe/账户状态规则运行报告-20260707.md
+    probe_status: PASS
+    probe_version: v0.1
+  - rule_id: FORMAL-RISK-001
+    rule_version: v0.1
+    rule_status: draft
+    gate_function: plan_gate
+    parameter_set_id: plan_params_v0.1
+    testset_id: plan_gate_testset_v0.1
+    report: 05-运行报告/P0-Plan-Probe/预案检查规则运行报告-20260709.md
+    probe_status: PASS
+    probe_version: v0.1
+  - rule_id: FORMAL-RISK-002
+    rule_version: v0.1
+    rule_status: draft
+    gate_function: stress_gate
+    parameter_set_id: stress_params_v0.1
+    testset_id: stress_gate_testset_v0.1
+    report: 05-运行报告/P0-Stress-Probe/极限下跌压力测试运行报告-20260709.md
+    probe_status: PASS
+    probe_version: v0.1
